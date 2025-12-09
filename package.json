@@ -1,18 +1,12 @@
 {
-  "name": "scarth-game",
+  "name": "scratch-game",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "線上刮刮樂遊戲",
+  "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node app.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "body-parser": "^2.2.1",
-    "crypto": "^1.0.1",
-    "express": "^5.2.1"
+    "express": "^4.18.2"
   }
 }
