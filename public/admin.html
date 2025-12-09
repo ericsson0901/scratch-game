@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>管理後台</title>
+</head>
+<body>
+  <h1>管理後台</h1>
+
+  <!-- 管理員登入 -->
+  <h2>管理員登入</h2>
+  <input id="adminPwd" type="password" placeholder="輸入管理員密碼">
+  <button onclick="adminLogin()">登入</button>
+
+  <!-- 後台操作面板 -->
+  <div id="panel" style="display:none; margin-top:30px;">
+
+    <h2>更新玩家登入密碼</h2>
+    <input id="pwd" type="text" placeholder="新玩家密碼">
+    <button onclick="updatePwd()">更新密碼</button>
+
+    <h2>更新遊戲設定</h2>
+    <label>格數: <input id="gridSize" type="number" value="9"></label>
+    <label>中獎號碼: <input id="winningNumber" type="number" value="7"></label>
+    <button onclick="updateConfig()">更新設定</button>
+
+    <h2>重新開始遊戲</h2>
+    <button onclick="resetGame()">重新開始</button>
+
+    <h2>更改後端登入密碼</h2>
+    <input id="newAdminPwd" type="password" placeholder="新後端密碼">
+    <button onclick="updateAdminPwd()">更新後端密碼</button>
+
+    <h2>目前狀態</h2>
+    <pre id="state"></pre>
+  </div>
+
+<script>
+let adminToken = null;
+
+// 管理員登入
+async function adminLogin() {
+  const pwd = document.getElementById('adminPwd').value;
+  const res = await fetch('/api/admin/login', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({password: pwd})
+  });
+  if(res.ok){
+    const data = await res.json();
+    adminToken = data.token;
+    alert('登入成功');
+    document.getElementById('panel').style.display='block';
+    loadState();
+  } else {
+    alert('密碼錯誤');
+  }
+}
+
+// 更新玩家登入密碼
+async function updatePwd() {
+  const newPwd = document.getElementById('pwd').value;
+  const res = await fetch('/api/admin/password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': adminToken
+    },
+    body: JSON.stringify({ newLoginPassword: newPwd })
+  });
+  if(res.ok) { alert('玩家密碼更新成功'); loadState(); }
+  else { alert('更新失敗'); }
+}
+
+// 更新遊戲設定
+async function updateConfig() {
+  const gridSize = document.getElementById('gridSize').value;
+  const winningNumber = document.getElementById('winningNumber').value;
+  const res = await fetch('/api/admin/config', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': adminToken
+    },
+    body: JSON.stringify({ gridSize, winningNumber })
+  });
+  if(res.ok) { alert('遊戲設定更新成功'); loadState(); }
+  else { alert('更新失敗'); }
+}
+
+// 重新開始遊戲
+async function resetGame() {
+  const res = await fetch('/api/admin/reset', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': adminToken
+    }
+  });
+  if(res.ok) { alert('遊戲已重新開始'); loadState(); }
+  else { alert('重置失敗'); }
+}
+
+// 更新後端登入密碼
+async function updateAdminPwd() {
+  const newPwd = document.getElementById('newAdminPwd').value;
+  const res = await fetch('/api/admin/updatePassword', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': adminToken
+    },
+    body: JSON.stringify({ newPassword: newPwd })
+  });
+  if(res.ok){
+    alert('後端登入密碼更新成功，下次登入請用新密碼');
+  } else {
+    alert('更新失敗');
+  }
+}
+
+// 載入狀態
+async function loadState() {
+  const res = await fetch('/api/admin/state', {
+    headers: { 'x-admin-token': adminToken }
+  });
+  const data = await res.json();
+  document.getElementById('state').innerText = JSON.stringify(data, null, 2);
+}
+</script>
+</body>
+</html>

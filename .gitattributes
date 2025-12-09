@@ -1,0 +1,20 @@
+# 預設所有文字檔案自動偵測並統一行尾
+* text=auto
+
+# 指定常見程式檔案使用 LF（Linux/Mac 標準）
+*.js   text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.md   text eol=lf
+
+# Windows 專用檔案可維持 CRLF
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# 二進位檔案不要轉換行尾
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
