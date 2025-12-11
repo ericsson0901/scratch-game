@@ -1,132 +1,194 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <title>管理後台</title>
+  <title>管理員端</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align:center; margin:20px; }
+    input, button { margin:5px; padding:8px; font-size:16px; }
+    #createGame, #resetGame, #deleteGame, #config, #progress, #gameList { margin-top:20px; }
+    #progressBar { width: 80%; height: 20px; background: #ddd; margin: 10px auto; border-radius: 5px; }
+    #progressFill { height: 100%; width: 0%; background: #4caf50; border-radius: 5px; }
+    ul { list-style:none; padding:0; }
+    li { margin:5px 0; }
+  </style>
 </head>
 <body>
-  <h1>管理後台</h1>
+  <h1>管理員控制台</h1>
 
-  <!-- 管理員登入 -->
-  <h2>管理員登入</h2>
-  <input id="adminPwd" type="password" placeholder="輸入管理員密碼">
-  <button onclick="adminLogin()">登入</button>
-
-  <!-- 後台操作面板 -->
-  <div id="panel" style="display:none; margin-top:30px;">
-
-    <h2>更新玩家登入密碼</h2>
-    <input id="pwd" type="text" placeholder="新玩家密碼">
-    <button onclick="updatePwd()">更新密碼</button>
-
-    <h2>更新遊戲設定</h2>
-    <label>格數: <input id="gridSize" type="number" value="9"></label>
-    <label>中獎號碼: <input id="winningNumber" type="number" value="7"></label>
-    <button onclick="updateConfig()">更新設定</button>
-
-    <h2>重新開始遊戲</h2>
-    <button onclick="resetGame()">重新開始</button>
-
-    <h2>更改後端登入密碼</h2>
-    <input id="newAdminPwd" type="password" placeholder="新後端密碼">
-    <button onclick="updateAdminPwd()">更新後端密碼</button>
-
-    <h2>目前狀態</h2>
-    <pre id="state"></pre>
+  <!-- 登入 -->
+  <div id="login">
+    <input type="password" id="adminPassword" placeholder="輸入管理員密碼">
+    <button id="loginBtn">登入</button>
   </div>
 
-<script>
-let adminToken = null;
+  <!-- 建立遊戲 -->
+  <div id="createGame" style="display:none;">
+    <h2>建立新遊戲</h2>
+    <input type="text" id="newGameCode" placeholder="輸入新遊戲代碼">
+    <button id="createGameBtn">建立遊戲</button>
+    <p id="createStatus"></p>
+  </div>
 
-// 管理員登入
-async function adminLogin() {
-  const pwd = document.getElementById('adminPwd').value;
-  const res = await fetch('/api/admin/login', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({password: pwd})
-  });
-  if(res.ok){
-    const data = await res.json();
-    adminToken = data.token;
-    alert('登入成功');
-    document.getElementById('panel').style.display='block';
-    loadState();
-  } else {
-    alert('密碼錯誤');
-  }
-}
+  <!-- 重設遊戲 -->
+  <div id="resetGame" style="display:none;">
+    <h2>重設遊戲</h2>
+    <input type="text" id="resetGameCode" placeholder="輸入要重設的遊戲代碼">
+    <button id="resetGameBtn">重設遊戲</button>
+    <p id="resetStatus"></p>
+  </div>
 
-// 更新玩家登入密碼
-async function updatePwd() {
-  const newPwd = document.getElementById('pwd').value;
-  const res = await fetch('/api/admin/password', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-token': adminToken
-    },
-    body: JSON.stringify({ newLoginPassword: newPwd })
-  });
-  if(res.ok) { alert('玩家密碼更新成功'); loadState(); }
-  else { alert('更新失敗'); }
-}
+  <!-- 刪除遊戲 -->
+  <div id="deleteGame" style="display:none;">
+    <h2>刪除遊戲</h2>
+    <input type="text" id="deleteGameCode" placeholder="輸入要刪除的遊戲代碼">
+    <button id="deleteGameBtn">刪除遊戲</button>
+    <p id="deleteStatus"></p>
+  </div>
 
-// 更新遊戲設定
-async function updateConfig() {
-  const gridSize = document.getElementById('gridSize').value;
-  const winningNumber = document.getElementById('winningNumber').value;
-  const res = await fetch('/api/admin/config', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-token': adminToken
-    },
-    body: JSON.stringify({ gridSize, winningNumber })
-  });
-  if(res.ok) { alert('遊戲設定更新成功'); loadState(); }
-  else { alert('更新失敗'); }
-}
+  <!-- 修改設定 -->
+  <div id="config" style="display:none;">
+    <h2>修改遊戲設定</h2>
+    <form id="configForm">
+      <label>遊戲代碼: <input type="text" name="code" placeholder="輸入遊戲代碼"></label><br>
+      <label>格子大小: <input type="number" name="gridSize" value="9"></label><br>
+      <label>中獎號碼: <input type="number" name="winNumber" value="7"></label><br>
+      <label>玩家密碼: <input type="text" name="playerPassword" value="player123"></label><br>
+      <button type="submit">更新設定</button>
+    </form>
+    <p id="status"></p>
+  </div>
 
-// 重新開始遊戲
-async function resetGame() {
-  const res = await fetch('/api/admin/reset', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-token': adminToken
-    }
-  });
-  if(res.ok) { alert('遊戲已重新開始'); loadState(); }
-  else { alert('重置失敗'); }
-}
+  <!-- 查看進度 -->
+  <div id="progress" style="display:none;">
+    <h2>遊戲進度</h2>
+    <input type="text" id="progressGameCode" placeholder="輸入遊戲代碼">
+    <button id="refreshProgressBtn">查看進度</button>
+    <p>已刮出：<span id="scratchedCountAdmin">0</span></p>
+    <p>剩下：<span id="remainingCountAdmin">0</span></p>
+    <div id="progressBar"><div id="progressFill"></div></div>
+  </div>
 
-// 更新後端登入密碼
-async function updateAdminPwd() {
-  const newPwd = document.getElementById('newAdminPwd').value;
-  const res = await fetch('/api/admin/updatePassword', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-token': adminToken
-    },
-    body: JSON.stringify({ newPassword: newPwd })
-  });
-  if(res.ok){
-    alert('後端登入密碼更新成功，下次登入請用新密碼');
-  } else {
-    alert('更新失敗');
-  }
-}
+  <!-- 遊戲代碼清單 -->
+  <div id="gameList" style="display:none;">
+    <h2>目前所有遊戲代碼</h2>
+    <button id="refreshGameListBtn">更新清單</button>
+    <ul id="gameListUl"></ul>
+  </div>
 
-// 載入狀態
-async function loadState() {
-  const res = await fetch('/api/admin/state', {
-    headers: { 'x-admin-token': adminToken }
-  });
-  const data = await res.json();
-  document.getElementById('state').innerText = JSON.stringify(data, null, 2);
-}
-</script>
+  <script>
+    let adminToken = null;
+
+    // 管理員登入
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const password = document.getElementById('adminPassword').value;
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        adminToken = data.token;
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('createGame').style.display = 'block';
+        document.getElementById('resetGame').style.display = 'block';
+        document.getElementById('deleteGame').style.display = 'block';
+        document.getElementById('config').style.display = 'block';
+        document.getElementById('progress').style.display = 'block';
+        document.getElementById('gameList').style.display = 'block';
+      } else {
+        alert('管理員密碼錯誤');
+      }
+    });
+
+    // 建立遊戲
+    document.getElementById('createGameBtn').addEventListener('click', async () => {
+      const code = document.getElementById('newGameCode').value;
+      const res = await fetch('/api/admin/create-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      document.getElementById('createStatus').textContent = data.message || data.error;
+    });
+
+    // 重設遊戲
+    document.getElementById('resetGameBtn').addEventListener('click', async () => {
+      const code = document.getElementById('resetGameCode').value;
+      const res = await fetch('/api/admin/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      document.getElementById('resetStatus').textContent = data.message || data.error;
+    });
+
+    // 刪除遊戲
+    document.getElementById('deleteGameBtn').addEventListener('click', async () => {
+      const code = document.getElementById('deleteGameCode').value;
+      const res = await fetch('/api/admin/delete-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      document.getElementById('deleteStatus').textContent = data.message || data.error;
+    });
+
+    // 修改遊戲設定
+    document.getElementById('configForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const body = {
+        code: formData.get('code'),
+        gridSize: parseInt(formData.get('gridSize')),
+        winNumber: parseInt(formData.get('winNumber')),
+        playerPassword: formData.get('playerPassword')
+      };
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      document.getElementById('status').textContent = data.success ? '設定已更新: ' + JSON.stringify(data.config) : data.error;
+    });
+
+    // 查看遊戲進度
+    document.getElementById('refreshProgressBtn').addEventListener('click', async () => {
+      const code = document.getElementById('progressGameCode').value;
+      const res = await fetch(`/api/game/state?code=${code}`);
+      const data = await res.json();
+      if(data.error){ alert(data.error); return; }
+      const scratchedCount = data.scratched.filter(n => n !== null).length;
+      const remainingCount = data.gridSize - scratchedCount;
+      document.getElementById('scratchedCountAdmin').innerText = scratchedCount;
+      document.getElementById('remainingCountAdmin').innerText = remainingCount;
+      const percent = (scratchedCount / data.gridSize) * 100;
+      document.getElementById('progressFill').style.width = percent + '%';
+    });
+
+    // 更新遊戲代碼清單
+    document.getElementById('refreshGameListBtn').addEventListener('click', async () => {
+      const res = await fetch('/api/admin/game-list', {
+        headers: { 'Authorization': 'Bearer ' + adminToken }
+      });
+      const data = await res.json();
+      const ul = document.getElementById('gameListUl');
+      ul.innerHTML = '';
+      if (data.codes && data.codes.length > 0) {
+        data.codes.forEach(code => {
+          const li = document.createElement('li');
+          li.textContent = code;
+          ul.appendChild(li);
+        });
+      } else {
+        ul.innerHTML = '<li>目前沒有遊戲</li>';
+      }
+    });
+  </script>
 </body>
 </html>

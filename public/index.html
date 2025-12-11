@@ -1,137 +1,73 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
   <title>刮刮樂遊戲</title>
+  <link rel="stylesheet" href="style.css">
   <style>
-    body { font-family: Arial, sans-serif; text-align:center; margin:0; padding:0; }
-    .grid { display: grid; gap: 8px; margin:20px auto; justify-content:center; }
-    .cell {
-      display:flex; align-items:center; justify-content:center;
-      cursor:pointer; border-radius:8px; background: white;
-      position: relative; overflow: hidden;
-      font-size: 24px; font-weight:bold;
+    /* 廣告遮罩樣式 */
+    #adOverlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      color: #fff;
+      text-align: center;
     }
-    .cell::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: silver;
-      transition: transform 0.8s ease-out;
-      transform: translateX(0);
+    #adOverlay img {
+      max-width: 80%;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 0 20px rgba(255,255,255,0.5);
     }
-    .cell.revealing::before {
-      transform: translateX(100%);
-    }
-    .scratched { border: 2px solid #333; background: white; }
-
-    /* 手機版自適應 */
-    @media (max-width: 600px) {
-      .cell { width: 50px !important; height: 50px !important; font-size: 18px !important; }
-      .grid { gap: 6px; }
-    }
-    @media (max-width: 400px) {
-      .cell { width: 40px !important; height: 40px !important; font-size: 16px !important; }
-      .grid { gap: 4px; }
+    #closeAdBtn {
+      padding: 10px 20px;
+      font-size: 18px;
+      background: #4caf50;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      color: #fff;
     }
   </style>
 </head>
 <body>
-  <h1>🎉 線上刮刮樂 🎉</h1>
+  <!-- 廣告遮罩 -->
+  <div id="adOverlay">
+    <!-- 廣告圖片（按鈕文字已改成「聯絡我們」） -->
+    <img src="https://copilot.microsoft.com/th/id/BCO.43bb37ac-c81c-4745-bd9c-b3572581f76e.png" alt="系統家具設計廣告">
+    <!-- 真正控制遊戲進入的按鈕 -->
+    <button id="closeAdBtn">聯絡我們</button>
+  </div>
 
-  <div id="game">
+  <h1>請留下姓名電話</h1>
+
+  <!-- 登入區塊 -->
+  <div id="login" style="display:none;">
+    <input type="text" id="gameCode" placeholder="輸入後台提供的代碼">
+    <input type="password" id="password" placeholder="輸入密碼">
+    <button id="loginBtn">登入</button>
+  </div>
+
+  <!-- 遊戲區塊 -->
+  <div id="game" style="display:none;">
     <h2>中獎號碼：<span id="winning"></span></h2>
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
     <div class="grid" id="grid"></div>
   </div>
 
-<script>
-let winningNumber = null;
-let totalCells = 0;
-
-async function loadGame() {
-  const state = await fetch('/api/game/state').then(r=>r.json());
-  winningNumber = state.winningNumber;
-  totalCells = state.gridSize;
-  document.getElementById('winning').innerText = winningNumber;
-
-  const grid = document.getElementById('grid');
-  grid.innerHTML='';
-
-  // 排列方式
-  const root = Math.sqrt(state.gridSize);
-  if (Number.isInteger(root)) {
-    grid.style.gridTemplateColumns = `repeat(${root}, auto)`;
-  } else {
-    grid.style.gridTemplateColumns = `repeat(6, auto)`;
-  }
-
-  // 格子大小
-  let cellSize = 100;
-  if (state.gridSize <= 9) cellSize = 100;
-  else if (state.gridSize <= 16) cellSize = 90;
-  else if (state.gridSize <= 25) cellSize = 80;
-  else if (state.gridSize <= 36) cellSize = 70;
-  else cellSize = 60;
-
-  for(let i=0;i<state.gridSize;i++){
-    const cell=document.createElement('div');
-    cell.className='cell';
-    cell.style.width = cellSize + 'px';
-    cell.style.height = cellSize + 'px';
-
-    if(state.scratched.includes(i)){
-      reveal(i, cell);
-    }
-    cell.onclick=()=>scratch(i, cell);
-    grid.appendChild(cell);
-  }
-
-  // 更新統計
-  updateStats(state.scratched.length);
-}
-
-async function scratch(i, cell){
-  cell.classList.add('revealing');
-  if (navigator.vibrate) navigator.vibrate(100);
-
-  setTimeout(async ()=>{
-    const res = await fetch('/api/game/scratch',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({index:i})
+  <script src="game.js"></script>
+  <script>
+    // 點擊「進入遊戲」後隱藏廣告，顯示登入區塊
+    document.getElementById('closeAdBtn').addEventListener('click', () => {
+      document.getElementById('adOverlay').style.display = 'none';
+      document.getElementById('login').style.display = 'block';
     });
-    const data = await res.json();
-    cell.innerText=data.number;
-
-    // 更新統計
-    const scratchedCount = document.querySelectorAll('.cell.revealing').length;
-    updateStats(scratchedCount);
-
-    if(data.number == winningNumber){
-      alert('🎉 恭喜中獎！你刮到了號碼 ' + winningNumber);
-    }
-  }, 800);
-}
-
-async function reveal(i, cell){
-  const res = await fetch('/api/game/scratch',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({index:i})
-  });
-  const data = await res.json();
-  cell.innerText=data.number;
-  cell.classList.add('revealing');
-}
-
-// 更新統計數字
-function updateStats(scratchedCount){
-  document.getElementById('scratchedCount').innerText = scratchedCount;
-  document.getElementById('remainingCount').innerText = totalCells - scratchedCount;
-}
-
-window.onload = loadGame;
-</script>
+  </script>
 </body>
 </html>

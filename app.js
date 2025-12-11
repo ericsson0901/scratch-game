@@ -1,128 +1,158 @@
 const express = require('express');
-const fs = require('fs');
-const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
+require('dotenv').config();
 
 const app = express();
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// ====== 工具函式 ======
-function hash(pwd) {
-  return crypto.createHash('sha256').update(pwd).digest('hex');
-}
+const PORT = process.env.PORT || 3000;
+const DATA_FILE = path.join(__dirname, 'games.json');
 
-function loadAdmin() {
-  if (!fs.existsSync('admin.json')) {
-    return {
-      adminPasswordHash: hash(process.env.ADMIN_PASSWORD || 'admin123'),
-      loginPasswordHash: hash('player123'),
-      gridSize: 9,
-      winningNumber: 7,
-      scratched: []
-    };
+// 預設設定
+let defaultConfig = {
+  gridSize: 9,
+  winNumber: 7,
+  playerPassword: 'player123'
+};
+
+// 多場遊戲狀態
+let games = {};
+
+// 載入資料檔案
+if (fs.existsSync(DATA_FILE)) {
+  try {
+    games = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+    console.log('遊戲資料已載入');
+  } catch (err) {
+    console.error('載入遊戲資料失敗:', err);
   }
-  return JSON.parse(fs.readFileSync('admin.json'));
 }
 
-function saveAdmin(admin) {
-  fs.writeFileSync('admin.json', JSON.stringify(admin, null, 2));
+// 儲存資料
+function saveGames() {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(games, null, 2));
 }
 
-// ====== 玩家登入 ======
+// 初始化遊戲
+function initGame(code, config = defaultConfig) {
+  let arr = Array.from({ length: config.gridSize }, (_, i) => i + 1);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  games[code] = {
+    numbers: arr,
+    scratched: Array(config.gridSize).fill(null),
+    config: { ...config }
+  };
+  saveGames();
+}
+
+// 玩家登入
 app.post('/api/login', (req, res) => {
-  const admin = loadAdmin();
-  const { password } = req.body;
-  if (hash(password) === admin.loginPasswordHash) {
-    res.json({ token: 'player-token' });
-  } else {
-    res.status(401).json({ error: 'invalid password' });
+  const { password, code } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game code not found' });
+  if (password === games[code].config.playerPassword) {
+    return res.json({ token: 'player-token', code });
   }
+  res.status(401).json({ error: 'Invalid player password' });
 });
 
-// ====== 遊戲狀態 ======
+// 管理員登入
+let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+app.post('/api/admin', (req, res) => {
+  const { password } = req.body;
+  if (password === adminPassword) {
+    return res.json({ token: 'admin-token' });
+  }
+  res.status(401).json({ error: 'Invalid admin password' });
+});
+
+// 建立遊戲
+app.post('/api/admin/create-game', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
+
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'Game code required' });
+  if (games[code]) return res.status(400).json({ error: 'Game already exists' });
+
+  initGame(code);
+  res.json({ success: true, message: `遊戲 ${code} 已建立` });
+});
+
+// 重設遊戲
+app.post('/api/admin/reset', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
+
+  const { code } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  initGame(code, games[code].config);
+  res.json({ success: true, message: `遊戲 ${code} 已重設` });
+});
+
+// 刪除遊戲
+app.post('/api/admin/delete-game', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
+
+  const { code } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  delete games[code];
+  saveGames();
+  res.json({ success: true, message: `遊戲 ${code} 已刪除` });
+});
+
+// 修改遊戲設定
+app.post('/api/admin/config', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
+
+  const { code, gridSize, winNumber, playerPassword } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  if (gridSize) games[code].config.gridSize = gridSize;
+  if (winNumber) games[code].config.winNumber = winNumber;
+  if (playerPassword) games[code].config.playerPassword = playerPassword;
+
+  saveGames();
+  res.json({ success: true, config: games[code].config });
+});
+
+// 查看遊戲代碼清單
+app.get('/api/admin/game-list', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
+  res.json({ codes: Object.keys(games) });
+});
+
+// 遊戲狀態
 app.get('/api/game/state', (req, res) => {
-  const admin = loadAdmin();
+  const { code } = req.query;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
   res.json({
-    gridSize: admin.gridSize,
-    winningNumber: admin.winningNumber,
-    scratched: admin.scratched
+    gridSize: games[code].config.gridSize,
+    winningNumber: games[code].config.winNumber,
+    scratched: games[code].scratched
   });
 });
 
-// ====== 刮格子 ======
+// 刮格子
 app.post('/api/game/scratch', (req, res) => {
-  const admin = loadAdmin();
-  const { index } = req.body;
-  if (!admin.scratched.includes(index)) {
-    admin.scratched.push(index);
-    saveAdmin(admin);
+  const { index, code } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+  if (games[code].scratched[index] === null) {
+    games[code].scratched[index] = games[code].numbers[index];
+    saveGames();
   }
-  res.json({ number: (index % admin.gridSize) + 1 });
+  res.json({ number: games[code].scratched[index] });
 });
 
-// ====== 管理員登入 ======
-app.post('/api/admin/login', (req, res) => {
-  const admin = loadAdmin();
-  const { password } = req.body;
-  if (hash(password) === admin.adminPasswordHash) {
-    res.json({ token: 'admin-token' });
-  } else {
-    res.status(401).json({ error: 'invalid admin password' });
-  }
-});
-
-// ====== 管理員操作 ======
-function requireAdmin(req, res, next) {
-  if (req.headers['x-admin-token'] === 'admin-token') next();
-  else res.status(403).json({ error: 'not authorized' });
-}
-
-// 更新玩家登入密碼
-app.post('/api/admin/password', requireAdmin, (req, res) => {
-  const admin = loadAdmin();
-  admin.loginPasswordHash = hash(req.body.newLoginPassword);
-  saveAdmin(admin);
-  res.json({ ok: true });
-});
-
-// 更新遊戲設定
-app.post('/api/admin/config', requireAdmin, (req, res) => {
-  const admin = loadAdmin();
-  admin.gridSize = parseInt(req.body.gridSize);
-  admin.winningNumber = parseInt(req.body.winningNumber);
-  saveAdmin(admin);
-  res.json({ ok: true });
-});
-
-// 重新開始遊戲
-app.post('/api/admin/reset', requireAdmin, (req, res) => {
-  const admin = loadAdmin();
-  admin.scratched = [];
-  saveAdmin(admin);
-  res.json({ ok: true });
-});
-
-// 更新後端登入密碼
-app.post('/api/admin/updatePassword', requireAdmin, (req, res) => {
-  const admin = loadAdmin();
-  const newPwd = req.body.newPassword;
-  if (!newPwd || newPwd.length < 4) {
-    return res.status(400).json({ error: 'password too short' });
-  }
-  admin.adminPasswordHash = hash(newPwd);
-  saveAdmin(admin);
-  res.json({ ok: true });
-});
-
-// 查看狀態
-app.get('/api/admin/state', requireAdmin, (req, res) => {
-  const admin = loadAdmin();
-  res.json(admin);
-});
-
-// ====== 啟動伺服器 ======
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

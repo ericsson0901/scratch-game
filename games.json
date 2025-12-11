@@ -1,0 +1,45 @@
+{
+  "3": {
+    "numbers": [
+      12,
+      10,
+      11,
+      8,
+      13,
+      16,
+      5,
+      4,
+      15,
+      7,
+      14,
+      1,
+      9,
+      6,
+      2,
+      3
+    ],
+    "scratched": [
+      12,
+      null,
+      11,
+      null,
+      null,
+      null,
+      5,
+      null,
+      null,
+      7,
+      null,
+      null,
+      null,
+      6,
+      null,
+      null
+    ],
+    "config": {
+      "gridSize": 16,
+      "winNumber": 7,
+      "playerPassword": "3"
+    }
+  }
+}

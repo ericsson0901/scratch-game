@@ -1,5 +1,5 @@
 {
-  "name": "scratch-game",
+  "name": "scarth-game",
   "version": "1.0.0",
   "description": "線上刮刮樂遊戲",
   "main": "app.js",
@@ -7,6 +7,10 @@
     "start": "node app.js"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1"
+  },
+  "engines": {
+    "node": ">=16"
   }
 }
