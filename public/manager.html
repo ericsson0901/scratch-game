@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>場次管理員面板</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    h1 { margin-top: 30px; }
+    input, button {
+      margin: 8px;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      font-size: 14px;
+    }
+    input { width: 200px; }
+    button {
+      background: #4caf50;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover { background: #45a049; }
+    .card {
+      background: #222;
+      border: 1px solid #444;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px auto;
+      width: 320px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    .card h2 { margin-bottom: 15px; }
+    .card input { margin-bottom: 10px; }
+
+    /* 標籤樣式 */
+    #winNumbersTags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    .tag {
+      background: #4caf50;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 6px;
+      margin: 5px;
+      display: flex;
+      align-items: center;
+    }
+    .tag span {
+      margin-left: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>場次管理員登入</h1>
+  <div class="card" id="loginCard">
+    <input id="code" placeholder="遊戲代碼">
+    <input id="password" type="password" placeholder="場次管理員密碼">
+    <button id="loginBtn">登入</button>
+  </div>
+
+  <div id="managerPanel" style="display:none;">
+    <div class="card">
+      <h2>管理遊戲 <span id="gameCode"></span></h2>
+      <div>
+        <input id="gridSize" type="number" placeholder="格子數">
+        <button onclick="updateGrid()">修改格子數</button>
+      </div>
+      <div>
+        <!-- 改成標籤式輸入 -->
+        <div id="winNumbersContainer">
+          <input id="winNumberInput" type="number" placeholder="輸入號碼後按 Enter">
+          <div id="winNumbersTags"></div>
+        </div>
+        <button onclick="updateWin()">修改中獎號碼</button>
+      </div>
+      <div>
+        <button onclick="resetGame()">重製遊戲</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+let managerToken = null;
+let currentCode = null;
+
+// 登入：每個遊戲代碼有獨立 manager 密碼
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const code = document.getElementById('code').value.trim();
+  const password = document.getElementById('password').value;
+  const res = await fetch('/api/manager/login', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({code,password})
+  });
+  const data = await res.json();
+  if(data.token){
+    managerToken = data.token;
+    currentCode = data.code;
+    document.getElementById('gameCode').textContent = currentCode;
+    document.getElementById('loginCard').style.display='none';
+    document.getElementById('managerPanel').style.display='block';
+  }else{
+    alert(data.error || '登入失敗');
+  }
+});
+
+// 修改格子數
+async function updateGrid(){
+  const gridSize = parseInt(document.getElementById('gridSize').value);
+  const res = await fetch('/api/manager/config/grid',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+managerToken},
+    body:JSON.stringify({code:currentCode,gridSize})
+  });
+  const result = await res.json();
+  alert(result.message || result.error || '格子數已更新');
+}
+
+// ===== 標籤式輸入 (新增/刪除中獎號碼) =====
+const winNumbers = [];
+const input = document.getElementById('winNumberInput');
+const tagsDiv = document.getElementById('winNumbersTags');
+
+// 新增號碼
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && input.value.trim() !== '') {
+    const num = parseInt(input.value.trim(), 10);
+    if (!isNaN(num) && !winNumbers.includes(num)) {
+      winNumbers.push(num);
+      renderTags();
+    }
+    input.value = '';
+  }
+});
+
+// 渲染標籤
+function renderTags() {
+  tagsDiv.innerHTML = '';
+  winNumbers.forEach(num => {
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.textContent = num;
+    const remove = document.createElement('span');
+    remove.textContent = '✖';
+    remove.onclick = () => {
+      const idx = winNumbers.indexOf(num);
+      if (idx > -1) {
+        winNumbers.splice(idx, 1);
+        renderTags();
+      }
+    };
+    tag.appendChild(remove);
+    tagsDiv.appendChild(tag);
+  });
+}
+
+// 修改中獎號碼 (送出 winNumbers 陣列)
+async function updateWin(){
+  if(winNumbers.length === 0){
+    alert('請輸入至少一個號碼');
+    return;
+  }
+  const res = await fetch('/api/manager/config/win',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+managerToken},
+    body:JSON.stringify({code:currentCode,winNumbers})
+  });
+  const result = await res.json();
+  alert(result.message || result.error || '中獎號碼已更新');
+}
+
+// 重製遊戲
+async function resetGame(){
+  const res = await fetch('/api/manager/reset',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+managerToken},
+    body:JSON.stringify({code:currentCode})
+  });
+  const result = await res.json();
+  alert(result.message || result.error || '遊戲已重製');
+}
+</script>
+</body>
+</html>

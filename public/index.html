@@ -34,24 +34,72 @@
       cursor: pointer;
       color: #fff;
     }
+    .grid {
+      display: grid;
+      gap: 5px;
+      margin-top: 20px;
+    }
+    .cell {
+      width: 60px;
+      height: 60px;
+      background: #ccc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    .cell.revealing {
+      background: #fff;
+      color: #000;
+    }
+    .cell.win {
+      background: gold;
+      color: #000;
+      font-weight: bold;
+    }
+    /* 遊戲代碼清單樣式 */
+    #gameListUl {
+      list-style: none;
+      padding: 0;
+    }
+    #gameListUl li {
+      margin: 10px 0;
+    }
+    #gameListUl button {
+      padding: 8px 16px;
+      font-size: 16px;
+      background: #4caf50;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      color: #fff;
+    }
+    #gameListUl button:hover {
+      background: #45a049;
+    }
   </style>
 </head>
 <body>
   <!-- 廣告遮罩 -->
   <div id="adOverlay">
-    <!-- 廣告圖片（按鈕文字已改成「聯絡我們」） -->
     <img src="https://copilot.microsoft.com/th/id/BCO.43bb37ac-c81c-4745-bd9c-b3572581f76e.png" alt="系統家具設計廣告">
-    <!-- 真正控制遊戲進入的按鈕 -->
     <button id="closeAdBtn">聯絡我們</button>
   </div>
 
-  <h1>請留下姓名電話</h1>
-
   <!-- 登入區塊 -->
   <div id="login" style="display:none;">
-    <input type="text" id="gameCode" placeholder="輸入後台提供的代碼">
-    <input type="password" id="password" placeholder="輸入密碼">
+    <h2>請輸入電話號碼</h2>
+    <input type="password" id="password" placeholder="輸入電話號碼">
     <button id="loginBtn">登入</button>
+  </div>
+
+  <!-- 選擇遊戲代碼區塊 (改成清單顯示) -->
+  <div id="selectGame" style="display:none;">
+    <h2>選擇遊戲代碼</h2>
+    <button id="refreshGameListBtn">更新清單</button>
+    <ul id="gameListUl"></ul>
   </div>
 
   <!-- 遊戲區塊 -->
@@ -63,11 +111,66 @@
 
   <script src="game.js"></script>
   <script>
-    // 點擊「進入遊戲」後隱藏廣告，顯示登入區塊
+    // 點擊廣告後顯示登入區塊
     document.getElementById('closeAdBtn').addEventListener('click', () => {
       document.getElementById('adOverlay').style.display = 'none';
       document.getElementById('login').style.display = 'block';
     });
+
+    // 登入驗證全域密碼
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (res.ok) {
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('selectGame').style.display = 'block';
+        loadGameList(); // 登入成功後載入代碼清單
+      } else {
+        const err = await res.json();
+        alert(err.error || '密碼錯誤');
+      }
+    });
+
+    // 載入遊戲代碼清單
+    async function loadGameList() {
+      const res = await fetch('/api/game-list');
+      if (res.ok) {
+        const data = await res.json();
+        const ul = document.getElementById('gameListUl');
+        ul.innerHTML = '';
+        data.codes.forEach(code => {
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.textContent = code;
+          btn.onclick = () => startSelectedGame(code);
+          li.appendChild(btn);
+          ul.appendChild(li);
+        });
+      } else {
+        alert('無法取得遊戲清單');
+      }
+    }
+
+    // 手動更新清單
+    document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
+
+    // 開始遊戲
+    function startSelectedGame(gameCode) {
+      document.getElementById('selectGame').style.display = 'none';
+      document.getElementById('game').style.display = 'block';
+      if (typeof startGame === 'function') {
+        startGame(gameCode);
+      }
+    }
+
+    // 修改顯示中獎號碼的邏輯 (由 game.js 呼叫)
+    function showWinningNumbers(numbers) {
+      document.getElementById('winning').textContent = numbers.join(', ');
+    }
   </script>
 </body>
 </html>
