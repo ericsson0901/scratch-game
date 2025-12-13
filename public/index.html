@@ -53,11 +53,16 @@
       overflow: hidden;
       transition: transform 0.2s ease;
     }
-    /* 放大時按比例放大 */
+    /* 放大時像手機全螢幕一樣 */
     .cell.enlarged {
-      transform: scale(3); /* 放大比例可調整，約半個螢幕 */
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(1);
+      width: 80vw;
+      height: 80vw;
       background: #fff;
-      z-index: 100;
+      z-index: 1000;
     }
     /* 刮完保持白底 */
     .cell.revealed {
@@ -73,13 +78,13 @@
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       font-size: 20px;
-      color: #000; /* 初始黑色 */
+      color: #000;
       pointer-events: none;
       transition: font-size 0.2s ease;
     }
-    /* 放大時字體跟著變大 */
+    /* 放大時字體按比例放大 */
     .cell.enlarged .hiddenNumber {
-      font-size: 60px;
+      font-size: 20vw;
     }
     /* 中獎而且已經刮完縮小後才變金色 */
     .cell.win.revealed .hiddenNumber {
@@ -122,7 +127,7 @@
     <button id="loginBtn">登入</button>
   </div>
 
-  <!-- 選擇遊戲代碼區塊 (改成清單顯示) -->
+  <!-- 選擇遊戲代碼區塊 -->
   <div id="selectGame" style="display:none;">
     <h2>選擇遊戲代碼</h2>
     <button id="refreshGameListBtn">更新清單</button>
@@ -135,7 +140,6 @@
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
     <div class="grid" id="grid"></div>
   </div>
-
   <script src="game.js"></script>
   <script>
     // 點擊廣告後顯示登入區塊
@@ -155,7 +159,7 @@
       if (res.ok) {
         document.getElementById('login').style.display = 'none';
         document.getElementById('selectGame').style.display = 'block';
-        loadGameList(); // 登入成功後載入代碼清單
+        loadGameList();
       } else {
         const err = await res.json();
         alert(err.error || '密碼錯誤');
@@ -182,10 +186,8 @@
       }
     }
 
-    // 手動更新清單
     document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
 
-    // 開始遊戲
     function startSelectedGame(gameCode) {
       document.getElementById('selectGame').style.display = 'none';
       document.getElementById('game').style.display = 'block';
@@ -194,7 +196,6 @@
       }
     }
 
-    // 修改顯示中獎號碼的邏輯 (由 game.js 呼叫)
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
     }
@@ -206,7 +207,7 @@
       canvas.width = cell.offsetWidth;
       canvas.height = cell.offsetHeight;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#C0C0C0'; // 銀色遮罩
+      ctx.fillStyle = '#C0C0C0';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const span = document.createElement('span');
@@ -215,16 +216,30 @@
 
       cell.appendChild(span);
       cell.appendChild(canvas);
+
+      function resetCellStyle() {
+        // 清掉放大時的 style，恢復原本 grid 狀態
+        cell.style.position = '';
+        cell.style.top = '';
+        cell.style.left = '';
+        cell.style.width = '';
+        cell.style.height = '';
+        cell.style.transform = '';
+        cell.style.zIndex = '';
+      }
+
       function scratch(e) {
         const rect = canvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
         ctx.globalCompositeOperation = 'destination-out';
+
+        // 半徑依比例放大
+        const radius = canvas.width * 0.05;
         ctx.beginPath();
-        ctx.arc(x, y, 12, 0, Math.PI * 2);
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // 計算刮開比例
         const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
         let transparent = 0;
         for (let i = 3; i < pixels.length; i += 4) {
@@ -232,15 +247,16 @@
         }
         const ratio = transparent / (canvas.width * canvas.height);
 
-        // 刮開超過 0.8 → 通知中獎 + 縮小 + 字變金色
-        if (ratio > 0.8 && !cell.dataset.revealed) {
+        if (ratio > 0.4 && !cell.dataset.revealed) {
           cell.classList.remove('enlarged');
-          cell.classList.add('revealed'); // revealed 觸發字變金色
+          resetCellStyle();
+          cell.classList.add('revealed');
           cell.dataset.revealed = "true";
 
           if (cell.dataset.win === "true" && !cell.dataset.alerted) {
             alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
             cell.dataset.alerted = "true";
+            cell.classList.add('win'); // 縮小後顯示金色
           }
         }
       }
@@ -248,20 +264,30 @@
       canvas.addEventListener('mousemove', scratch);
       canvas.addEventListener('touchmove', scratch);
 
-      // 一分鐘後自動縮小（如果還沒刮到 0.8）
+      // 一分鐘後自動縮小
       setTimeout(() => {
         if (!cell.dataset.revealed && cell.classList.contains('enlarged')) {
           cell.classList.remove('enlarged');
-          // 不加 revealed，因為還沒刮到 0.8，不變金色
+          resetCellStyle();
+          if (cell.dataset.win === "true") {
+            cell.classList.add('revealed');
+            cell.classList.add('win'); // 縮小後顯示金色
+          }
         }
       }, 60000);
     }
 
-    // 讓 game.js 呼叫這個來建立刮刮樂格子
-    function createScratchCell(cell, number, isWin) {
-      cell.classList.add('enlarged'); // 放大並白底
+    function createScratchCell(cell, number, isWin, alreadyRevealed) {
+      if (!alreadyRevealed) {
+        cell.classList.add('enlarged');
+      }
       initScratchCanvas(cell, number);
-      if (isWin) cell.dataset.win = "true"; // 先標記，不馬上變色
+      if (isWin) cell.dataset.win = "true";
+      if (alreadyRevealed) {
+        cell.classList.add('revealed');
+        cell.dataset.revealed = "true";
+        if (isWin) cell.classList.add('win');
+      }
     }
   </script>
 </body>

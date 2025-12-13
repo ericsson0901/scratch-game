@@ -98,142 +98,6 @@ app.post('/api/manager/login', (req, res) => {
   // 登入成功，給獨立 token
   return res.json({ token: `manager-token-${code}`, code });
 });
-// Admin 重設遊戲
-app.post('/api/admin/reset', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
-  const { code } = req.body;
-  if (!games[code]) {
-    return res.status(404).json({ error: 'Game not found' });
-  }
-
-  initGame(code, games[code].config);
-
-  res.json({ success: true, message: `遊戲 ${code} 已重設` });
-});
-
-// 建立遊戲
-app.post('/api/admin/create-game', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
-
-  const { code, managerPassword } = req.body;
-  if (!code) return res.status(400).json({ error: 'Game code required' });
-  if (games[code]) return res.status(400).json({ error: 'Game already exists' });
-
-  initGame(code);
-  games[code].config.managerPassword = managerPassword || 'manager123';
-  saveGames();
-
-  res.json({ success: true, message: `遊戲 ${code} 已建立` });
-});
-
-// 刪除遊戲
-app.post('/api/admin/delete-game', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
-
-  const { code } = req.body;
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
-
-  delete games[code];
-  saveGames();
-  res.json({ success: true, message: `遊戲 ${code} 已刪除` });
-});
-
-// 修改遊戲設定（支援多個中獎號碼）
-app.post('/api/admin/config', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
-
-  const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
-
-  if (gridSize) {
-    games[code].config.gridSize = gridSize;
-    initGame(code, games[code].config);
-  }
-  if (winNumbers) {
-    if (!Array.isArray(winNumbers)) {
-      return res.status(400).json({ error: 'winNumbers must be an array' });
-    }
-    if (winNumbers.some(n => n > games[code].config.gridSize)) {
-      return res.status(400).json({ error: 'Each winNumber must be within grid size' });
-    }
-    games[code].config.winNumbers = winNumbers;
-  }
-  if (progressThreshold !== undefined) games[code].config.progressThreshold = progressThreshold;
-  if (managerPassword) games[code].config.managerPassword = managerPassword;
-
-  saveGames();
-  res.json({ success: true, config: games[code].config });
-});
-
-// Manager 修改中獎號碼（支援多個）
-app.post('/api/manager/config/win', (req, res) => {
-  const auth = req.headers.authorization;
-  const { code, winNumbers } = req.body;
-  if (!auth || auth !== `Bearer manager-token-${code}`) {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
-
-  if (!Array.isArray(winNumbers)) {
-    return res.status(400).json({ error: 'winNumbers must be an array' });
-  }
-  if (winNumbers.some(n => n > games[code].config.gridSize)) {
-    return res.status(400).json({ error: 'Each winNumber must be within grid size' });
-  }
-  games[code].config.winNumbers = winNumbers;
-  saveGames();
-  res.json({ message: `遊戲 ${code} 中獎號碼已更新為 ${winNumbers.join(', ')}` });
-});
-
-// Manager 修改格子數
-app.post('/api/manager/config/grid', (req, res) => {
-  const auth = req.headers.authorization;
-  const { code, gridSize } = req.body;
-  if (!auth || auth !== `Bearer manager-token-${code}`) {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
-  if (!gridSize || gridSize <= 0) {
-    return res.status(400).json({ error: 'Invalid grid size' });
-  }
-
-  games[code].config.gridSize = gridSize;
-  initGame(code, games[code].config);
-
-  res.json({ message: `遊戲 ${code} 格子數已更新為 ${gridSize}` });
-});
-
-// Manager 重製遊戲
-app.post('/api/manager/reset', (req, res) => {
-  const auth = req.headers.authorization;
-  const { code } = req.body;
-  if (!auth || auth !== `Bearer manager-token-${code}`) {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
-
-  initGame(code, games[code].config);
-
-  res.json({ message: `遊戲 ${code} 已重製` });
-});
-// 查詢所有遊戲代碼清單 (Admin)
-app.get('/api/admin/game-list', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
-  // 過濾掉特殊密碼欄位
-  const codes = Object.keys(games).filter(code => !code.startsWith('__'));
-  res.json({ codes });
-});
 
 // 玩家查詢遊戲代碼清單 (新增)
 app.get('/api/game-list', (req, res) => {
@@ -242,15 +106,20 @@ app.get('/api/game-list', (req, res) => {
   res.json({ codes });
 });
 
-// 玩家查詢遊戲狀態
+// 玩家查詢遊戲狀態 (修改：增加 revealed 陣列)
 app.get('/api/game/state', (req, res) => {
   const { code } = req.query;
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  const game = games[code];
+
   res.json({
-    gridSize: games[code].config.gridSize,
-    winningNumbers: games[code].config.winNumbers,
-    progressThreshold: games[code].config.progressThreshold,
-    scratched: games[code].scratched
+    gridSize: game.config.gridSize,
+    winningNumbers: game.config.winNumbers,
+    progressThreshold: game.config.progressThreshold,
+    scratched: game.scratched,
+    // 新增 revealed 陣列：true/false 表示是否已刮過
+    revealed: game.scratched.map(n => n !== null)
   });
 });
 
@@ -289,27 +158,125 @@ app.post('/api/game/scratch', (req, res) => {
     saveGames();
   }
 
-  res.json({ number: game.scratched[index] });
+  // 修改回傳：除了號碼，也回傳 revealed 狀態
+  res.json({
+    number: game.scratched[index],
+    revealed: true
+  });
 });
-
-// 查看遊戲進度
-app.get('/api/admin/progress', (req, res) => {
+// === Manager 重製遊戲 ===
+app.post('/api/manager/reset', (req, res) => {
   const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
-
-  const { code } = req.query;
+  const { code } = req.body;
+  if (!auth || auth !== `Bearer manager-token-${code}`) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
-  const scratchedCount = games[code].scratched.filter(n => n !== null).length;
-  const remainingCount = games[code].config.gridSize - scratchedCount;
-  const thresholdReached = scratchedCount >= games[code].config.progressThreshold;
+  initGame(code, games[code].config);
+  res.json({ message: `遊戲 ${code} 已由場次管理員重製` });
+});
 
-  res.json({
-    scratchedCount,
-    remainingCount,
-    progressThreshold: games[code].config.progressThreshold,
-    thresholdReached
-  });
+// === Manager 修改格子數 ===
+app.post('/api/manager/config/grid', (req, res) => {
+  const auth = req.headers.authorization;
+  const { code, gridSize } = req.body;
+  if (!auth || auth !== `Bearer manager-token-${code}`) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  games[code].config.gridSize = gridSize;
+  saveGames();
+  res.json({ message: `遊戲 ${code} 格子數已更新為 ${gridSize}` });
+});
+
+// === Manager 修改中獎號碼 ===
+app.post('/api/manager/config/win', (req, res) => {
+  const auth = req.headers.authorization;
+  const { code, winNumbers } = req.body;
+  if (!auth || auth !== `Bearer manager-token-${code}`) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  games[code].config.winNumbers = Array.isArray(winNumbers) ? winNumbers : games[code].config.winNumbers;
+  saveGames();
+  res.json({ message: `遊戲 ${code} 中獎號碼已更新為 ${games[code].config.winNumbers.join(', ')}` });
+});
+
+// === Admin 建立遊戲 ===
+app.post('/api/admin/create-game', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { code, managerPassword } = req.body;
+  if (!code) return res.status(400).json({ error: 'Game code required' });
+  if (games[code]) return res.status(400).json({ error: 'Game already exists' });
+
+  initGame(code, { ...defaultConfig, managerPassword });
+  res.json({ message: `遊戲 ${code} 已建立` });
+});
+
+// === Admin 重設遊戲 ===
+app.post('/api/admin/reset', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { code } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  initGame(code, games[code].config);
+  res.json({ message: `遊戲 ${code} 已重設` });
+});
+
+// === Admin 刪除遊戲 ===
+app.post('/api/admin/delete-game', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { code } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  delete games[code];
+  saveGames();
+  res.json({ message: `遊戲 ${code} 已刪除` });
+});
+
+// === Admin 修改遊戲設定 ===
+app.post('/api/admin/config', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  games[code].config.gridSize = gridSize || games[code].config.gridSize;
+  games[code].config.winNumbers = Array.isArray(winNumbers) ? winNumbers : games[code].config.winNumbers;
+  games[code].config.progressThreshold = progressThreshold || games[code].config.progressThreshold;
+  if (managerPassword) games[code].config.managerPassword = managerPassword;
+
+  saveGames();
+  res.json({ success: true, config: games[code].config });
+});
+
+// Admin 查詢所有遊戲代碼清單
+app.get('/api/admin/game-list', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const codes = Object.keys(games).filter(code => !code.startsWith('__'));
+  res.json({ codes });
 });
 
 // 修改管理員密碼（持久化）
@@ -321,7 +288,7 @@ app.post('/api/admin/change-password', (req, res) => {
   if (!newPassword) return res.status(400).json({ error: 'New password required' });
 
   adminPassword = newPassword;
-  games.__adminPassword = adminPassword; // 存到檔案
+  games.__adminPassword = adminPassword;
   saveGames();
 
   res.json({ message: '管理員密碼已更新' });
@@ -336,12 +303,13 @@ app.post('/api/admin/change-global-password', (req, res) => {
   if (!newPassword) return res.status(400).json({ error: 'New player password required' });
 
   globalPlayerPassword = newPassword;
-  games.__globalPlayerPassword = globalPlayerPassword; // 存到檔案
+  games.__globalPlayerPassword = globalPlayerPassword;
   saveGames();
 
   res.json({ message: '全域玩家密碼已更新' });
 });
 
+// 啟動伺服器
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

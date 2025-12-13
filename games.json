@@ -1,47 +1,33 @@
 {
   "1": {
     "numbers": [
-      14,
-      10,
-      2,
-      13,
-      1,
-      11,
-      12,
-      4,
-      16,
       6,
+      4,
       5,
       7,
-      15,
-      3,
+      2,
+      1,
+      8,
       9,
-      8
+      3
     ],
     "scratched": [
       null,
-      null,
-      null,
-      null,
-      null,
-      11,
-      null,
       4,
       null,
       null,
       null,
       null,
-      15,
       null,
       9,
       null
     ],
     "config": {
-      "gridSize": 16,
+      "gridSize": 9,
       "winNumbers": [
-        3
+        6
       ],
-      "progressThreshold": 15,
+      "progressThreshold": 3,
       "managerPassword": "1"
     }
   },

@@ -35,10 +35,17 @@ async function loadGame() {
     for (let i = 0; i < state.gridSize; i++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
+
       if (state.scratched[i] !== null) {
-        // 使用刮刮樂效果顯示已刮過的號碼
-        createScratchCell(cell, state.scratched[i], winningNumbers.includes(state.scratched[i]));
+        // 已刮過 → 不放大，直接顯示 revealed 狀態
+        createScratchCell(
+          cell,
+          state.scratched[i],
+          winningNumbers.includes(state.scratched[i]),
+          true // alreadyRevealed
+        );
       }
+
       cell.onclick = () => scratch(i, cell);
       grid.appendChild(cell);
     }
@@ -65,8 +72,8 @@ async function scratch(i, cell) {
     });
     const data = await res.json();
 
-    // 使用刮刮樂效果顯示號碼
-    createScratchCell(cell, data.number, winningNumbers.includes(data.number));
+    // 使用刮刮樂效果顯示號碼（新刮的 → not revealed）
+    createScratchCell(cell, data.number, winningNumbers.includes(data.number), false);
 
     // 刮完後保持白底
     cell.classList.add('revealed');
