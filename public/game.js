@@ -36,11 +36,8 @@ async function loadGame() {
       const cell = document.createElement('div');
       cell.className = 'cell';
       if (state.scratched[i] !== null) {
-        cell.classList.add('revealing');
-        cell.innerText = state.scratched[i];
-        if (winningNumbers.includes(state.scratched[i])) {
-          cell.classList.add('win'); // 標記中獎格子
-        }
+        // 使用刮刮樂效果顯示已刮過的號碼
+        createScratchCell(cell, state.scratched[i], winningNumbers.includes(state.scratched[i]));
       }
       cell.onclick = () => scratch(i, cell);
       grid.appendChild(cell);
@@ -54,33 +51,36 @@ async function loadGame() {
 
 // 刮格子
 async function scratch(i, cell) {
-  if (cell.innerText && cell.innerText !== '') return; // 已經刮過就不再刮
+  if (cell.querySelector('.hiddenNumber')) return; // 已經刮過就不再刮
 
-  cell.classList.add('revealing');
+  // 放大並白底
+  cell.classList.add('enlarged');
   if (navigator.vibrate) navigator.vibrate(100);
 
-  setTimeout(async () => {
-    try {
-      const res = await fetch('/api/game/scratch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ index: i, code: gameCode })
-      });
-      const data = await res.json();
+  try {
+    const res = await fetch('/api/game/scratch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index: i, code: gameCode })
+    });
+    const data = await res.json();
 
-      cell.innerText = data.number;
+    // 使用刮刮樂效果顯示號碼
+    createScratchCell(cell, data.number, winningNumbers.includes(data.number));
 
-      const scratchedCount = document.querySelectorAll('.cell.revealing').length;
-      updateStats(scratchedCount);
+    // 刮完後保持白底
+    cell.classList.add('revealed');
 
-      if (winningNumbers.includes(data.number)) {
-        cell.classList.add('win'); // 標記中獎格子
-        alert('🎉 恭喜中獎！你刮到了號碼 ' + data.number);
-      }
-    } catch (e) {
-      alert('刮格子失敗，請稍後再試');
+    const scratchedCount = document.querySelectorAll('.cell .hiddenNumber').length;
+    updateStats(scratchedCount);
+
+    // 標記中獎，不要馬上提示
+    if (winningNumbers.includes(data.number)) {
+      cell.dataset.win = "true";
     }
-  }, 800);
+  } catch (e) {
+    alert('刮格子失敗，請稍後再試');
+  }
 }
 
 // 更新統計資訊

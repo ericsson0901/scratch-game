@@ -20,6 +20,9 @@ let defaultConfig = {
 // 全域玩家密碼
 let globalPlayerPassword = process.env.PLAYER_PASSWORD || 'player123';
 
+// 管理員密碼
+let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+
 // 多場遊戲狀態
 let games = {};
 
@@ -30,11 +33,15 @@ if (fs.existsSync(DATA_FILE)) {
     // 相容舊格式：將 winNumber 轉為 winNumbers 陣列
     for (const code in games) {
       const config = games[code].config;
-      if (typeof config.winNumber === 'number') {
+      if (typeof config?.winNumber === 'number') {
         config.winNumbers = [config.winNumber];
         delete config.winNumber;
       }
     }
+    // 載入持久化密碼
+    if (games.__adminPassword) adminPassword = games.__adminPassword;
+    if (games.__globalPlayerPassword) globalPlayerPassword = games.__globalPlayerPassword;
+
     console.log('遊戲資料已載入');
   } catch (err) {
     console.error('載入遊戲資料失敗:', err);
@@ -71,7 +78,6 @@ app.post('/api/login', (req, res) => {
 });
 
 // 管理員登入
-let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 app.post('/api/admin', (req, res) => {
   const { password } = req.body;
   if (password === adminPassword) {
@@ -224,13 +230,15 @@ app.get('/api/admin/game-list', (req, res) => {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
-  const codes = Object.keys(games);
+  // 過濾掉特殊密碼欄位
+  const codes = Object.keys(games).filter(code => !code.startsWith('__'));
   res.json({ codes });
 });
 
 // 玩家查詢遊戲代碼清單 (新增)
 app.get('/api/game-list', (req, res) => {
-  const codes = Object.keys(games);
+  // 過濾掉特殊密碼欄位
+  const codes = Object.keys(games).filter(code => !code.startsWith('__'));
   res.json({ codes });
 });
 
@@ -304,7 +312,7 @@ app.get('/api/admin/progress', (req, res) => {
   });
 });
 
-// 修改管理員密碼
+// 修改管理員密碼（持久化）
 app.post('/api/admin/change-password', (req, res) => {
   const auth = req.headers.authorization;
   if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
@@ -313,10 +321,13 @@ app.post('/api/admin/change-password', (req, res) => {
   if (!newPassword) return res.status(400).json({ error: 'New password required' });
 
   adminPassword = newPassword;
+  games.__adminPassword = adminPassword; // 存到檔案
+  saveGames();
+
   res.json({ message: '管理員密碼已更新' });
 });
 
-// 修改全域玩家密碼
+// 修改全域玩家密碼（持久化）
 app.post('/api/admin/change-global-password', (req, res) => {
   const auth = req.headers.authorization;
   if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
@@ -325,6 +336,9 @@ app.post('/api/admin/change-global-password', (req, res) => {
   if (!newPassword) return res.status(400).json({ error: 'New player password required' });
 
   globalPlayerPassword = newPassword;
+  games.__globalPlayerPassword = globalPlayerPassword; // 存到檔案
+  saveGames();
+
   res.json({ message: '全域玩家密碼已更新' });
 });
 

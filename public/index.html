@@ -49,14 +49,41 @@
       font-size: 20px;
       cursor: pointer;
       border-radius: 5px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease;
     }
-    .cell.revealing {
+    /* 放大時按比例放大 */
+    .cell.enlarged {
+      transform: scale(3); /* 放大比例可調整，約半個螢幕 */
       background: #fff;
-      color: #000;
+      z-index: 100;
     }
-    .cell.win {
-      background: gold;
-      color: #000;
+    /* 刮完保持白底 */
+    .cell.revealed {
+      background: #fff;
+    }
+    .scratchCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    .hiddenNumber {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 20px;
+      color: #000; /* 初始黑色 */
+      pointer-events: none;
+      transition: font-size 0.2s ease;
+    }
+    /* 放大時字體跟著變大 */
+    .cell.enlarged .hiddenNumber {
+      font-size: 60px;
+    }
+    /* 中獎而且已經刮完縮小後才變金色 */
+    .cell.win.revealed .hiddenNumber {
+      color: gold;
       font-weight: bold;
     }
     /* 遊戲代碼清單樣式 */
@@ -170,6 +197,71 @@
     // 修改顯示中獎號碼的邏輯 (由 game.js 呼叫)
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
+    }
+
+    // 刮刮樂效果初始化
+    function initScratchCanvas(cell, number) {
+      const canvas = document.createElement('canvas');
+      canvas.className = 'scratchCanvas';
+      canvas.width = cell.offsetWidth;
+      canvas.height = cell.offsetHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#C0C0C0'; // 銀色遮罩
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const span = document.createElement('span');
+      span.className = 'hiddenNumber';
+      span.textContent = number;
+
+      cell.appendChild(span);
+      cell.appendChild(canvas);
+      function scratch(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 計算刮開比例
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let transparent = 0;
+        for (let i = 3; i < pixels.length; i += 4) {
+          if (pixels[i] === 0) transparent++;
+        }
+        const ratio = transparent / (canvas.width * canvas.height);
+
+        // 刮開超過 0.8 → 通知中獎 + 縮小 + 字變金色
+        if (ratio > 0.8 && !cell.dataset.revealed) {
+          cell.classList.remove('enlarged');
+          cell.classList.add('revealed'); // revealed 觸發字變金色
+          cell.dataset.revealed = "true";
+
+          if (cell.dataset.win === "true" && !cell.dataset.alerted) {
+            alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
+            cell.dataset.alerted = "true";
+          }
+        }
+      }
+
+      canvas.addEventListener('mousemove', scratch);
+      canvas.addEventListener('touchmove', scratch);
+
+      // 一分鐘後自動縮小（如果還沒刮到 0.8）
+      setTimeout(() => {
+        if (!cell.dataset.revealed && cell.classList.contains('enlarged')) {
+          cell.classList.remove('enlarged');
+          // 不加 revealed，因為還沒刮到 0.8，不變金色
+        }
+      }, 60000);
+    }
+
+    // 讓 game.js 呼叫這個來建立刮刮樂格子
+    function createScratchCell(cell, number, isWin) {
+      cell.classList.add('enlarged'); // 放大並白底
+      initScratchCanvas(cell, number);
+      if (isWin) cell.dataset.win = "true"; // 先標記，不馬上變色
     }
   </script>
 </body>
