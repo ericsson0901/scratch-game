@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "dotenv": "^16.6.1",
-    "express": "^4.22.1"
+    "express": "^4.22.1",
+    "googleapis": "^168.0.0"
   },
   "engines": {
     "node": ">=16"
