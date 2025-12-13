@@ -312,6 +312,11 @@
           cell.classList.add('revealed');
           cell.dataset.revealed = "true";
 
+          // 新增：縮小後自動捲回格子位置
+          setTimeout(() => {
+            cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+          }, 100);
+
           if (cell.dataset.win === "true" && !cell.dataset.alerted) {
             alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
             cell.dataset.alerted = "true";
@@ -333,6 +338,10 @@
             cell.classList.add('revealed');
             cell.classList.add('win');
           }
+          // 自動縮小時也捲回格子位置
+          setTimeout(() => {
+            cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+          }, 100);
         }
       }, 60000);
     }
