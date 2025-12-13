@@ -286,7 +286,7 @@
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
         ctx.globalCompositeOperation = 'destination-out';
 
-        const radius = canvas.width * 0.15; // 加大筆刷半徑
+        const radius = canvas.width * 0.1; // 加大筆刷半徑
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
