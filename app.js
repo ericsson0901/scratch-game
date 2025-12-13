@@ -279,6 +279,15 @@ app.post('/api/admin/change-global-password', (req, res) => {
   res.json({ message: '全域玩家密碼已更新' });
 });
 
+// === 玩家查詢某場遊戲狀態 ===
+app.get('/api/game/:code', (req, res) => {
+  const { code } = req.params;
+  if (!games[code]) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+  res.json(games[code]);
+});
+
 // 啟動伺服器
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
