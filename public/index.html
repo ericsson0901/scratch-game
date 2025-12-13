@@ -251,9 +251,12 @@
         enablePageScroll(); // 離開放大態時恢復捲動
       }
 
-      // 進入放大態時鎖住頁面捲動
+      // 進入放大態時鎖住頁面捲動並自動置中
       if (cell.classList.contains('enlarged')) {
         disablePageScroll();
+        setTimeout(() => {
+          cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }, 50);
       }
 
       function scratch(e) {
