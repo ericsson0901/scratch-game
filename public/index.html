@@ -239,6 +239,9 @@
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
     }
+
+    // 新增：全域旗標，控制是否已有格子放大
+    let isCellEnlarged = false;
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -264,24 +267,24 @@
         cell.style.height = '';
         cell.style.transform = '';
         cell.style.zIndex = '';
-        document.body.classList.remove('zoomedOut'); // 恢復正常大小
-        unlockViewport(); // 恢復自動縮放
-        enablePageScroll(); // 離開放大態時恢復捲動
+        document.body.classList.remove('zoomedOut');
+        unlockViewport();
+        enablePageScroll();
+        isCellEnlarged = false; // 縮小後允許其他格子再放大
       }
 
       function scratch(e) {
-        if (e.cancelable) e.preventDefault(); // 阻止 iOS 預設捲動
+        if (e.cancelable) e.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
         ctx.globalCompositeOperation = 'destination-out';
 
-        const radius = canvas.width * 0.1; // 筆刷半徑
+        const radius = canvas.width * 0.1;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // 只檢查數字區域是否已經刮乾淨
         const numberRect = span.getBoundingClientRect();
         const canvasRect = canvas.getBoundingClientRect();
         const sx = numberRect.left - canvasRect.left;
@@ -296,14 +299,13 @@
         }
         const ratio = transparent / (sw * sh);
 
-        if (ratio > 0.9 && !cell.dataset.revealed) { // 數字區域幾乎全透明才縮小
+        if (ratio > 0.9 && !cell.dataset.revealed) {
           setTimeout(() => {
             cell.classList.remove('enlarged');
             resetCellStyle();
             cell.classList.add('revealed');
             cell.dataset.revealed = "true";
 
-            // 縮小後自動捲回格子位置
             cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
 
             if (cell.dataset.win === "true" && !cell.dataset.alerted) {
@@ -311,7 +313,7 @@
               cell.dataset.alerted = "true";
               cell.classList.add('win');
             }
-          }, 3000); // 延遲 3 秒
+          }, 3000);
         }
       }
 
@@ -319,7 +321,6 @@
       canvas.addEventListener('touchmove', scratch, { passive: false });
       canvas.addEventListener('mousemove', scratch);
 
-      // 一分鐘後自動縮小
       setTimeout(() => {
         if (!cell.dataset.revealed && cell.classList.contains('enlarged')) {
           cell.classList.remove('enlarged');
@@ -328,7 +329,6 @@
             cell.classList.add('revealed');
             cell.classList.add('win');
           }
-          // 自動縮小時也捲回格子位置
           setTimeout(() => {
             cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
           }, 100);
@@ -338,13 +338,16 @@
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
-        // 先捲到中央，再放大
+        // 如果已有格子放大，就不允許再放大其他格子
+        if (isCellEnlarged) return;
+
         cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         setTimeout(() => {
           cell.classList.add('enlarged');
           disablePageScroll();
           lockViewport();
-        }, 500); // 延遲 0.5 秒，讓捲動先完成
+          isCellEnlarged = true; // 標記有格子正在放大
+        }, 500);
       }
       initScratchCanvas(cell, number);
       if (isWin) cell.dataset.win = "true";
