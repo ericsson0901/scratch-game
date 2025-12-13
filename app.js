@@ -95,6 +95,45 @@ function initGame(code, config = defaultConfig) {
 
 // 啟動時先載入遊戲資料
 loadGames();
+
+// === 玩家登入 ===
+app.post('/api/login', (req, res) => {
+  const { password } = req.body;
+  if (password === globalPlayerPassword) {
+    res.json({ success: true });
+  } else {
+    res.status(403).json({ error: '密碼錯誤' });
+  }
+});
+
+// === 玩家查詢遊戲清單 ===
+app.get('/api/game-list', (req, res) => {
+  const codes = Object.keys(games).filter(code => !code.startsWith('__'));
+  res.json({ codes });
+});
+
+// === 管理員登入 ===
+app.post('/api/admin', (req, res) => {
+  const { password } = req.body;
+  if (password === adminPassword) {
+    res.json({ token: 'admin-token' });
+  } else {
+    res.status(403).json({ error: '管理員密碼錯誤' });
+  }
+});
+
+// === 場次管理員登入 ===
+app.post('/api/manager/login', (req, res) => {
+  const { code, password } = req.body;
+  if (!games[code]) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+  if (password === games[code].config.managerPassword) {
+    res.json({ token: `manager-token-${code}`, code });
+  } else {
+    res.status(403).json({ error: '場次管理員密碼錯誤' });
+  }
+});
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const authHeader = req.headers.authorization;
