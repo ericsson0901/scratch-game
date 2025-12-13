@@ -255,7 +255,12 @@
       if (cell.classList.contains('enlarged')) {
         disablePageScroll();
         setTimeout(() => {
-          cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+          const rect = cell.getBoundingClientRect();
+          const absoluteTop = rect.top + window.scrollY;
+          const absoluteLeft = rect.left + window.scrollX;
+          const centerY = absoluteTop - (window.innerHeight / 2) + (rect.height / 2);
+          const centerX = absoluteLeft - (window.innerWidth / 2) + (rect.width / 2);
+          window.scrollTo({ top: centerY, left: centerX, behavior: 'smooth' });
         }, 50);
       }
 
