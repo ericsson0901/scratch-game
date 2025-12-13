@@ -114,10 +114,9 @@
       background: #45a049;
     }
 
-    /* 新增：全域禁止捲動的樣式 */
+    /* 修改：移除 position: fixed 避免 iPhone 定位錯亂 */
     body.noscroll {
       overflow: hidden;
-      position: fixed;
       width: 100%;
     }
   </style>
@@ -251,17 +250,9 @@
         enablePageScroll(); // 離開放大態時恢復捲動
       }
 
-      // 進入放大態時鎖住頁面捲動並自動置中
+      // 進入放大態時鎖住頁面捲動
       if (cell.classList.contains('enlarged')) {
         disablePageScroll();
-        setTimeout(() => {
-          const rect = cell.getBoundingClientRect();
-          const absoluteTop = rect.top + window.scrollY;
-          const absoluteLeft = rect.left + window.scrollX;
-          const centerY = absoluteTop - (window.innerHeight / 2) + (rect.height / 2);
-          const centerX = absoluteLeft - (window.innerWidth / 2) + (rect.width / 2);
-          window.scrollTo({ top: centerY, left: centerX, behavior: 'smooth' });
-        }, 50);
       }
 
       function scratch(e) {
