@@ -298,7 +298,7 @@
         }
         const ratio = transparent / (canvas.width * canvas.height);
 
-        if (ratio > 0.4 && !cell.dataset.revealed) {
+        if (ratio > 0.8 && !cell.dataset.revealed) {
           cell.classList.remove('enlarged');
           resetCellStyle();
           cell.classList.add('revealed');
