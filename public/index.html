@@ -324,19 +324,21 @@
         const ratio = transparent / (sw * sh);
 
         if (ratio > 0.9 && !cell.dataset.revealed) {
-          // ✅ 只有刮到透明度 >90% 才縮小並 revealed
-          cell.classList.remove('enlarged');
-          resetCellStyle();
-          cell.classList.add('revealed');
-          cell.dataset.revealed = "true";
+          // ✅ 延遲 1.5 秒再縮小，避免太快
+          setTimeout(() => {
+            cell.classList.remove('enlarged');
+            resetCellStyle();
+            cell.classList.add('revealed');
+            cell.dataset.revealed = "true";
 
-          cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+            cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
 
-          if (cell.dataset.win === "true" && !cell.dataset.alerted) {
-            alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
-            cell.dataset.alerted = "true";
-            cell.classList.add('win');
-          }
+            if (cell.dataset.win === "true" && !cell.dataset.alerted) {
+              alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
+              cell.dataset.alerted = "true";
+              cell.classList.add('win');
+            }
+          }, 1500); // 延遲 1500 毫秒
         }
       }
 
