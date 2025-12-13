@@ -33,6 +33,7 @@ let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
 // 多場遊戲狀態
 let games = {};
+
 // 從 Google Drive 載入資料檔案
 async function loadGames() {
   try {
@@ -95,7 +96,6 @@ function initGame(code, config = defaultConfig) {
 
 // 啟動時先載入遊戲資料
 loadGames();
-
 // === 玩家登入 ===
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
@@ -134,6 +134,7 @@ app.post('/api/manager/login', (req, res) => {
     res.status(403).json({ error: '場次管理員密碼錯誤' });
   }
 });
+
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -174,7 +175,6 @@ app.post('/api/manager/config/win', (req, res) => {
   saveGames();
   res.json({ message: `遊戲 ${code} 中獎號碼已更新為 ${games[code].config.winNumbers.join(', ')}` });
 });
-
 // === Admin 建立遊戲 ===
 app.post('/api/admin/create-game', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -225,6 +225,19 @@ app.post('/api/admin/config', (req, res) => {
   if (!authHeader || authHeader !== 'Bearer admin-token') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
+
+  const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  games[code].config.gridSize = gridSize || games[code].config.gridSize;
+  games[code].config.winNumbers = Array.isArray(winNumbers) ? winNumbers : games[code].config.winNumbers;
+  games[code].config.progressThreshold = progressThreshold || games[code].config.progressThreshold;
+  if (managerPassword) games[code].config.managerPassword = managerPassword;
+
+  saveGames();
+  res.json({ success: true, config: games[code].config });
+});
+
 // === 玩家刮格子 ===
 app.post('/api/game/:code/scratch', (req, res) => {
   const { code } = req.params;
@@ -245,19 +258,6 @@ app.post('/api/game/:code/scratch', (req, res) => {
 
   saveGames();
   res.json({ number });
-});
-
-
-  const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
-
-  games[code].config.gridSize = gridSize || games[code].config.gridSize;
-  games[code].config.winNumbers = Array.isArray(winNumbers) ? winNumbers : games[code].config.winNumbers;
-  games[code].config.progressThreshold = progressThreshold || games[code].config.progressThreshold;
-  if (managerPassword) games[code].config.managerPassword = managerPassword;
-
-  saveGames();
-  res.json({ success: true, config: games[code].config });
 });
 
 // Admin 查詢所有遊戲代碼清單
