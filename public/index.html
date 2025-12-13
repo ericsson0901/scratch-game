@@ -286,19 +286,27 @@
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
         ctx.globalCompositeOperation = 'destination-out';
 
-        const radius = canvas.width * 0.1; // 加大筆刷半徑
+        const radius = canvas.width * 0.1; // 筆刷半徑
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        // 只檢查數字區域是否已經刮乾淨
+        const numberRect = span.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        const sx = numberRect.left - canvasRect.left;
+        const sy = numberRect.top - canvasRect.top;
+        const sw = numberRect.width;
+        const sh = numberRect.height;
+
+        const pixels = ctx.getImageData(sx, sy, sw, sh).data;
         let transparent = 0;
         for (let i = 3; i < pixels.length; i += 4) {
           if (pixels[i] === 0) transparent++;
         }
-        const ratio = transparent / (canvas.width * canvas.height);
+        const ratio = transparent / (sw * sh);
 
-        if (ratio > 0.6 && !cell.dataset.revealed) {
+        if (ratio > 0.9 && !cell.dataset.revealed) { // 數字區域幾乎全透明才縮小
           cell.classList.remove('enlarged');
           resetCellStyle();
           cell.classList.add('revealed');
