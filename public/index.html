@@ -74,7 +74,7 @@
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      /* 新增：阻止 iPhone Safari 將觸控解讀成捲動 */
+      /* 阻止 iPhone Safari 將觸控解讀成捲動 */
       touch-action: none;
     }
     .hiddenNumber {
@@ -172,7 +172,7 @@
       }
     }
 
-    // 新增：控制 viewport
+    // 控制 viewport
     function lockViewport() {
       document.getElementById('viewportMeta')
         .setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
@@ -188,7 +188,7 @@
       document.getElementById('login').style.display = 'block';
     });
 
-    // 登入驗證全域密碼
+    // 登入驗證
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const password = document.getElementById('password').value;
       const res = await fetch('/api/login', {
@@ -240,7 +240,7 @@
       document.getElementById('winning').textContent = numbers.join(', ');
     }
 
-    // 新增：全域變數，記錄目前放大的格子 & 是否有格子放大
+    // 全域變數：目前放大的格子 & 是否有格子放大
     let currentEnlargedCell = null;
     let isAnyCellEnlarged = false;
     // 刮刮樂效果初始化
@@ -272,11 +272,24 @@
         unlockViewport();
         enablePageScroll();
         currentEnlargedCell = null; 
-        isAnyCellEnlarged = false; // 縮小後解除鎖定
+        isAnyCellEnlarged = false;
       }
+
+      // 新增：3 秒內沒刮 → 自動縮小
+      let scratched = false;
+      let autoShrinkTimer = setTimeout(() => {
+        if (!scratched && cell.classList.contains('enlarged')) {
+          cell.classList.remove('enlarged');
+          resetCellStyle();
+          cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }
+      }, 3000);
 
       function scratch(e) {
         if (e.cancelable) e.preventDefault();
+        scratched = true; // 有刮動 → 取消自動縮小
+        clearTimeout(autoShrinkTimer);
+
         const rect = canvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
@@ -353,7 +366,7 @@
           disablePageScroll();
           lockViewport();
           currentEnlargedCell = cell;
-          isAnyCellEnlarged = true; // 有格子放大時鎖定
+          isAnyCellEnlarged = true;
         }, 500);
       }
 
