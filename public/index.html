@@ -66,8 +66,10 @@
       background: #fff;
       z-index: 1000;
     }
-    /* 新增：放大時原位置保持空白 */
-    .cell.placeholder {
+    /* 新增：獨立佔位符元素，保持空白 */
+    .placeholder {
+      width: 60px;
+      height: 60px;
       visibility: hidden; /* 看不到，但仍佔位 */
     }
     /* 刮完保持白底 */
@@ -265,7 +267,12 @@
       cell.appendChild(canvas);
 
       function resetCellStyle() {
-        cell.classList.remove('placeholder'); // 移除佔位符
+        // 移除佔位符
+        if (cell._placeholder) {
+          cell._placeholder.remove();
+          cell._placeholder = null;
+        }
+        cell.classList.remove('enlarged');
         cell.style.position = '';
         cell.style.top = '';
         cell.style.left = '';
@@ -365,15 +372,22 @@
       }
 
       if (!alreadyRevealed) {
+        // 建立獨立佔位符
+        const placeholder = document.createElement('div');
+        placeholder.className = 'placeholder';
+        cell.parentNode.insertBefore(placeholder, cell);
+
         cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         setTimeout(() => {
           cell.classList.add('enlarged');
-          cell.classList.add('placeholder'); // 新增：放大時原位置保持空白
           disablePageScroll();
           lockViewport();
           currentEnlargedCell = cell;
           isAnyCellEnlarged = true;
         }, 500);
+
+        // 記錄佔位符以便縮小時移除
+        cell._placeholder = placeholder;
       }
 
       initScratchCanvas(cell, number);
