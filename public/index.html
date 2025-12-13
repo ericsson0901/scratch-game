@@ -307,21 +307,21 @@
         const ratio = transparent / (sw * sh);
 
         if (ratio > 0.9 && !cell.dataset.revealed) { // 數字區域幾乎全透明才縮小
-          cell.classList.remove('enlarged');
-          resetCellStyle();
-          cell.classList.add('revealed');
-          cell.dataset.revealed = "true";
-
-          // 新增：縮小後自動捲回格子位置
           setTimeout(() => {
-            cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-          }, 100);
+            cell.classList.remove('enlarged');
+            resetCellStyle();
+            cell.classList.add('revealed');
+            cell.dataset.revealed = "true";
 
-          if (cell.dataset.win === "true" && !cell.dataset.alerted) {
-            alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
-            cell.dataset.alerted = "true";
-            cell.classList.add('win');
-          }
+            // 縮小後自動捲回格子位置
+            cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+
+            if (cell.dataset.win === "true" && !cell.dataset.alerted) {
+              alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
+              cell.dataset.alerted = "true";
+              cell.classList.add('win');
+            }
+          }, 3000); // 延遲 3 秒
         }
       }
 
