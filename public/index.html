@@ -239,7 +239,6 @@
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
     }
-
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -337,4 +336,11 @@
       initScratchCanvas(cell, number);
       if (isWin) cell.dataset.win = "true";
       if (alreadyRevealed) {
-        cell.classList.add('reve
+        cell.classList.add('revealed');
+        cell.dataset.revealed = "true";
+        if (isWin) cell.classList.add('win');
+      }
+    }
+  </script>
+</body>
+</html>
