@@ -225,6 +225,28 @@ app.post('/api/admin/config', (req, res) => {
   if (!authHeader || authHeader !== 'Bearer admin-token') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
+// === 玩家刮格子 ===
+app.post('/api/game/:code/scratch', (req, res) => {
+  const { code } = req.params;
+  const { index } = req.body;
+
+  if (!games[code]) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+
+  // 如果已經刮過，直接回傳
+  if (games[code].scratched[index] !== null) {
+    return res.json({ number: games[code].scratched[index] });
+  }
+
+  // 取得號碼並更新狀態
+  const number = games[code].numbers[index];
+  games[code].scratched[index] = number;
+
+  saveGames();
+  res.json({ number });
+});
+
 
   const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
