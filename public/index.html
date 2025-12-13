@@ -341,25 +341,24 @@
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
-        // 如果已有格子放大
         if (currentEnlargedCell && currentEnlargedCell !== cell) {
-          // 判斷是否已經刮過
+          // 如果舊的格子已經刮過 → 禁止切換
           if (currentEnlargedCell.dataset.scratched === "true") {
-            // 已刮過就禁止切換
             return;
           } else {
-            // 沒刮過就縮小並恢復
+            // 如果舊的格子沒刮過 → 先縮小並恢復成未刮狀態
             currentEnlargedCell.classList.remove('enlarged');
             currentEnlargedCell.classList.remove('revealed');
             currentEnlargedCell.dataset.revealed = "";
-            currentEnlargedCell.innerHTML = "";
+            currentEnlargedCell.dataset.scratched = "";
+            currentEnlargedCell.innerHTML = ""; // 清掉 canvas 和數字
             enablePageScroll();
             unlockViewport();
             currentEnlargedCell = null;
           }
         }
 
-        // 捲到中央再放大
+        // 放大新的格子
         cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         setTimeout(() => {
           cell.classList.add('enlarged');
