@@ -46,7 +46,14 @@ async function loadGame() {
         );
       }
 
-      cell.onclick = () => scratch(i, cell);
+      // 修改：點擊事件加上 isAnyCellEnlarged 判斷
+      cell.onclick = () => {
+        if (isAnyCellEnlarged && !cell.classList.contains('enlarged')) {
+          return; // 有格子放大時，其他格子點擊無效
+        }
+        scratch(i, cell);
+      };
+
       grid.appendChild(cell);
     }
 
