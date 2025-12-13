@@ -291,9 +291,9 @@
         });
       }
 
-      // ✅ 修正：3 秒內沒刮 → 自動縮小，但不判定已刮開
       let scratched = false;
       let autoShrinkTimer = setTimeout(() => {
+        // ✅ 沒刮過 → 縮小但保持未刮狀態
         if (!scratched && currentEnlargedCell === cell && cell.classList.contains('enlarged')) {
           cell.classList.remove('enlarged');
           resetCellStyle();
@@ -334,17 +334,20 @@
 
         if (ratio > 0.9 && !cell.dataset.revealed) {
           setTimeout(() => {
-            cell.classList.remove('enlarged');
-            resetCellStyle();
-            cell.classList.add('revealed');
-            cell.dataset.revealed = "true";
+            // ✅ 只有真的刮過才會 revealed
+            if (scratched && currentEnlargedCell === cell) {
+              cell.classList.remove('enlarged');
+              resetCellStyle();
+              cell.classList.add('revealed');
+              cell.dataset.revealed = "true";
 
-            cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+              cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
 
-            if (cell.dataset.win === "true" && !cell.dataset.alerted) {
-              alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
-              cell.dataset.alerted = "true";
-              cell.classList.add('win');
+              if (cell.dataset.win === "true" && !cell.dataset.alerted) {
+                alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
+                cell.dataset.alerted = "true";
+                cell.classList.add('win');
+              }
             }
           }, 3000);
         }
