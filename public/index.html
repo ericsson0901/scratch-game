@@ -72,6 +72,8 @@
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
+      /* 新增：阻止 iPhone Safari 將觸控解讀成捲動 */
+      touch-action: none;
     }
     .hiddenNumber {
       position: absolute;
@@ -111,6 +113,13 @@
     #gameListUl button:hover {
       background: #45a049;
     }
+
+    /* 新增：全域禁止捲動的樣式 */
+    body.noscroll {
+      overflow: hidden;
+      position: fixed;
+      width: 100%;
+    }
   </style>
 </head>
 <body>
@@ -142,6 +151,20 @@
   </div>
   <script src="game.js"></script>
   <script>
+    // 全域禁止捲動控制
+    function disablePageScroll() {
+      document.body.classList.add('noscroll');
+      window._preventScroll = (e) => { if (e.cancelable) e.preventDefault(); };
+      window.addEventListener('touchmove', window._preventScroll, { passive: false });
+    }
+    function enablePageScroll() {
+      document.body.classList.remove('noscroll');
+      if (window._preventScroll) {
+        window.removeEventListener('touchmove', window._preventScroll);
+        window._preventScroll = null;
+      }
+    }
+
     // 點擊廣告後顯示登入區塊
     document.getElementById('closeAdBtn').addEventListener('click', () => {
       document.getElementById('adOverlay').style.display = 'none';
@@ -218,7 +241,6 @@
       cell.appendChild(canvas);
 
       function resetCellStyle() {
-        // 清掉放大時的 style，恢復原本 grid 狀態
         cell.style.position = '';
         cell.style.top = '';
         cell.style.left = '';
@@ -226,15 +248,21 @@
         cell.style.height = '';
         cell.style.transform = '';
         cell.style.zIndex = '';
+        enablePageScroll(); // 離開放大態時恢復捲動
+      }
+
+      // 進入放大態時鎖住頁面捲動
+      if (cell.classList.contains('enlarged')) {
+        disablePageScroll();
       }
 
       function scratch(e) {
+        if (e.cancelable) e.preventDefault(); // 阻止 iOS 預設捲動
         const rect = canvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
         ctx.globalCompositeOperation = 'destination-out';
 
-        // 半徑依比例放大
         const radius = canvas.width * 0.05;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -256,13 +284,14 @@
           if (cell.dataset.win === "true" && !cell.dataset.alerted) {
             alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
             cell.dataset.alerted = "true";
-            cell.classList.add('win'); // 縮小後顯示金色
+            cell.classList.add('win');
           }
         }
       }
 
+      canvas.addEventListener('touchstart', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+      canvas.addEventListener('touchmove', scratch, { passive: false });
       canvas.addEventListener('mousemove', scratch);
-      canvas.addEventListener('touchmove', scratch);
 
       // 一分鐘後自動縮小
       setTimeout(() => {
@@ -271,7 +300,7 @@
           resetCellStyle();
           if (cell.dataset.win === "true") {
             cell.classList.add('revealed');
-            cell.classList.add('win'); // 縮小後顯示金色
+            cell.classList.add('win');
           }
         }
       }, 60000);
