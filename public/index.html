@@ -119,6 +119,12 @@
       overflow: hidden;
       width: 100%;
     }
+
+    /* 新增：點開格子時縮小整個網頁 */
+    body.zoomedOut {
+      transform: scale(0.85);
+      transform-origin: top center;
+    }
   </style>
 </head>
 <body>
@@ -247,12 +253,14 @@
         cell.style.height = '';
         cell.style.transform = '';
         cell.style.zIndex = '';
+        document.body.classList.remove('zoomedOut'); // 恢復正常大小
         enablePageScroll(); // 離開放大態時恢復捲動
       }
 
-      // 進入放大態時鎖住頁面捲動
+      // 進入放大態時鎖住頁面捲動並縮小整個網頁
       if (cell.classList.contains('enlarged')) {
         disablePageScroll();
+        document.body.classList.add('zoomedOut'); // 新增：縮小整個頁面
       }
 
       function scratch(e) {
