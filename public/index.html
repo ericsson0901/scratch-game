@@ -240,8 +240,8 @@
       document.getElementById('winning').textContent = numbers.join(', ');
     }
 
-    // 新增：全域旗標，控制是否已有格子放大
-    let isCellEnlarged = false;
+    // 新增：全域變數，記錄目前放大的格子
+    let currentEnlargedCell = null;
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -270,7 +270,7 @@
         document.body.classList.remove('zoomedOut');
         unlockViewport();
         enablePageScroll();
-        isCellEnlarged = false; // 縮小後允許其他格子再放大
+        currentEnlargedCell = null; // 縮小後清除目前放大格子
       }
 
       function scratch(e) {
@@ -284,6 +284,9 @@
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
+
+        // 一旦有刮過，就標記
+        cell.dataset.scratched = "true";
 
         const numberRect = span.getBoundingClientRect();
         const canvasRect = canvas.getBoundingClientRect();
@@ -338,17 +341,34 @@
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
-        // 如果已有格子放大，就不允許再放大其他格子
-        if (isCellEnlarged) return;
+        // 如果已有格子放大
+        if (currentEnlargedCell && currentEnlargedCell !== cell) {
+          // 判斷是否已經刮過
+          if (currentEnlargedCell.dataset.scratched === "true") {
+            // 已刮過就禁止切換
+            return;
+          } else {
+            // 沒刮過就縮小並恢復
+            currentEnlargedCell.classList.remove('enlarged');
+            currentEnlargedCell.classList.remove('revealed');
+            currentEnlargedCell.dataset.revealed = "";
+            currentEnlargedCell.innerHTML = "";
+            enablePageScroll();
+            unlockViewport();
+            currentEnlargedCell = null;
+          }
+        }
 
+        // 捲到中央再放大
         cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         setTimeout(() => {
           cell.classList.add('enlarged');
           disablePageScroll();
           lockViewport();
-          isCellEnlarged = true; // 標記有格子正在放大
+          currentEnlargedCell = cell;
         }, 500);
       }
+
       initScratchCanvas(cell, number);
       if (isWin) cell.dataset.win = "true";
       if (alreadyRevealed) {
