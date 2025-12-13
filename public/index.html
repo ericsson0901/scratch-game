@@ -66,7 +66,7 @@
       background: #fff;
       z-index: 1000;
     }
-    /* 新增：獨立佔位符元素，保持空白 */
+    /* 獨立佔位符元素，保持空白 */
     .placeholder {
       width: 60px;
       height: 60px;
@@ -287,12 +287,13 @@
         isAnyCellEnlarged = false;
       }
 
-      // 新增：3 秒內沒刮 → 自動縮小
+      // 新增：3 秒內沒刮 → 自動縮小，但不判定已刮開
       let scratched = false;
       let autoShrinkTimer = setTimeout(() => {
         if (!scratched && cell.classList.contains('enlarged')) {
           cell.classList.remove('enlarged');
           resetCellStyle();
+          // 不加 revealed，保持未刮狀態
           cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         }
       }, 3000);
