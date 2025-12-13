@@ -267,7 +267,6 @@
       cell.appendChild(canvas);
 
       function resetCellStyle() {
-        // 移除佔位符
         if (cell._placeholder) {
           cell._placeholder.remove();
           cell._placeholder = null;
@@ -287,7 +286,7 @@
         isAnyCellEnlarged = false;
       }
 
-      // 新增：3 秒內沒刮 → 自動縮小，但不判定已刮開
+      // ✅ 修正：3 秒內沒刮 → 自動縮小，但不判定已刮開
       let scratched = false;
       let autoShrinkTimer = setTimeout(() => {
         if (!scratched && cell.classList.contains('enlarged')) {
@@ -300,7 +299,7 @@
 
       function scratch(e) {
         if (e.cancelable) e.preventDefault();
-        scratched = true; // 有刮動 → 取消自動縮小
+        scratched = true;
         clearTimeout(autoShrinkTimer);
 
         const rect = canvas.getBoundingClientRect();
@@ -350,30 +349,14 @@
       canvas.addEventListener('touchstart', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
       canvas.addEventListener('touchmove', scratch, { passive: false });
       canvas.addEventListener('mousemove', scratch);
-
-      setTimeout(() => {
-        if (!cell.dataset.revealed && cell.classList.contains('enlarged')) {
-          cell.classList.remove('enlarged');
-          resetCellStyle();
-          if (cell.dataset.win === "true") {
-            cell.classList.add('revealed');
-            cell.classList.add('win');
-          }
-          setTimeout(() => {
-            cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-          }, 100);
-        }
-      }, 60000);
     }
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
-      // 如果已有格子放大，其他格子點擊無效
       if (isAnyCellEnlarged && !cell.classList.contains('enlarged')) {
         return;
       }
 
       if (!alreadyRevealed) {
-        // 建立獨立佔位符
         const placeholder = document.createElement('div');
         placeholder.className = 'placeholder';
         cell.parentNode.insertBefore(placeholder, cell);
@@ -387,7 +370,6 @@
           isAnyCellEnlarged = true;
         }, 500);
 
-        // 記錄佔位符以便縮小時移除
         cell._placeholder = placeholder;
       }
 
