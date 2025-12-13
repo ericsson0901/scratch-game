@@ -284,15 +284,19 @@
         enablePageScroll();
         currentEnlargedCell = null; 
         isAnyCellEnlarged = false;
+
+        // ✅ 恢復其他格子的點擊
+        document.querySelectorAll('.cell').forEach(c => {
+          c.style.pointerEvents = '';
+        });
       }
 
       // ✅ 修正：3 秒內沒刮 → 自動縮小，但不判定已刮開
       let scratched = false;
       let autoShrinkTimer = setTimeout(() => {
-        if (!scratched && cell.classList.contains('enlarged')) {
+        if (!scratched && currentEnlargedCell === cell && cell.classList.contains('enlarged')) {
           cell.classList.remove('enlarged');
           resetCellStyle();
-          // 不加 revealed，保持未刮狀態
           cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         }
       }, 3000);
@@ -352,6 +356,7 @@
     }
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
+      // ✅ 如果有格子正在放大，其他格子不能被點擊
       if (isAnyCellEnlarged && !cell.classList.contains('enlarged')) {
         return;
       }
@@ -368,6 +373,13 @@
           lockViewport();
           currentEnlargedCell = cell;
           isAnyCellEnlarged = true;
+
+          // ✅ 放大時禁止其他格子點擊
+          document.querySelectorAll('.cell').forEach(c => {
+            if (c !== cell) {
+              c.style.pointerEvents = 'none';
+            }
+          });
         }, 500);
 
         cell._placeholder = placeholder;
