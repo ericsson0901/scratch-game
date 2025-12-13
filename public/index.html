@@ -66,6 +66,10 @@
       background: #fff;
       z-index: 1000;
     }
+    /* 新增：放大時原位置保持空白 */
+    .cell.placeholder {
+      visibility: hidden; /* 看不到，但仍佔位 */
+    }
     /* 刮完保持白底 */
     .cell.revealed {
       background: #fff;
@@ -261,6 +265,7 @@
       cell.appendChild(canvas);
 
       function resetCellStyle() {
+        cell.classList.remove('placeholder'); // 移除佔位符
         cell.style.position = '';
         cell.style.top = '';
         cell.style.left = '';
@@ -363,6 +368,7 @@
         cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         setTimeout(() => {
           cell.classList.add('enlarged');
+          cell.classList.add('placeholder'); // 新增：放大時原位置保持空白
           disablePageScroll();
           lockViewport();
           currentEnlargedCell = cell;
