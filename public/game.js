@@ -46,7 +46,7 @@ async function loadGame() {
         );
       }
 
-      // 修改：點擊事件加上 isAnyCellEnlarged 判斷
+      // 點擊事件加上 isAnyCellEnlarged 判斷
       cell.onclick = () => {
         if (isAnyCellEnlarged && !cell.classList.contains('enlarged')) {
           return; // 有格子放大時，其他格子點擊無效
@@ -57,6 +57,7 @@ async function loadGame() {
       grid.appendChild(cell);
     }
 
+    // 初始化統計：只算已刮過的格子
     updateStats(state.scratched.filter(n => n !== null).length);
   } catch (e) {
     alert('載入遊戲失敗，請確認遊戲代碼是否正確');
@@ -82,10 +83,10 @@ async function scratch(i, cell) {
     // 使用刮刮樂效果顯示號碼（新刮的 → not revealed）
     createScratchCell(cell, data.number, winningNumbers.includes(data.number), false);
 
-    // ❌ 移除這行，避免強制判定已刮開
-    // cell.classList.add('revealed');
+    // ✅ 不再強制加 revealed，交由 index.html 控制
 
-    const scratchedCount = document.querySelectorAll('.cell .hiddenNumber').length;
+    // ✅ 統計只算 revealed 的格子
+    const scratchedCount = document.querySelectorAll('.cell.revealed').length;
     updateStats(scratchedCount);
 
     // 標記中獎，不要馬上提示
