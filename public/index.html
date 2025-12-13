@@ -240,8 +240,9 @@
       document.getElementById('winning').textContent = numbers.join(', ');
     }
 
-    // 新增：全域變數，記錄目前放大的格子
+    // 新增：全域變數，記錄目前放大的格子 & 是否有格子放大
     let currentEnlargedCell = null;
+    let isAnyCellEnlarged = false;
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -270,7 +271,8 @@
         document.body.classList.remove('zoomedOut');
         unlockViewport();
         enablePageScroll();
-        currentEnlargedCell = null; // 縮小後清除目前放大格子
+        currentEnlargedCell = null; 
+        isAnyCellEnlarged = false; // 縮小後解除鎖定
       }
 
       function scratch(e) {
@@ -285,7 +287,6 @@
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // 一旦有刮過，就標記
         cell.dataset.scratched = "true";
 
         const numberRect = span.getBoundingClientRect();
@@ -340,31 +341,19 @@
     }
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
-      if (!alreadyRevealed) {
-        if (currentEnlargedCell && currentEnlargedCell !== cell) {
-          // 如果舊的格子已經刮過 → 禁止切換
-          if (currentEnlargedCell.dataset.scratched === "true") {
-            return;
-          } else {
-            // 如果舊的格子沒刮過 → 先縮小並恢復成未刮狀態
-            currentEnlargedCell.classList.remove('enlarged');
-            currentEnlargedCell.classList.remove('revealed');
-            currentEnlargedCell.dataset.revealed = "";
-            currentEnlargedCell.dataset.scratched = "";
-            currentEnlargedCell.innerHTML = ""; // 清掉 canvas 和數字
-            enablePageScroll();
-            unlockViewport();
-            currentEnlargedCell = null;
-          }
-        }
+      // 如果已有格子放大，其他格子點擊無效
+      if (isAnyCellEnlarged && !cell.classList.contains('enlarged')) {
+        return;
+      }
 
-        // 放大新的格子
+      if (!alreadyRevealed) {
         cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         setTimeout(() => {
           cell.classList.add('enlarged');
           disablePageScroll();
           lockViewport();
           currentEnlargedCell = cell;
+          isAnyCellEnlarged = true; // 有格子放大時鎖定
         }, 500);
       }
 
