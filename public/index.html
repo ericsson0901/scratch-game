@@ -270,11 +270,14 @@
         enablePageScroll(); // 離開放大態時恢復捲動
       }
 
-      // 進入放大態時鎖住頁面捲動並固定縮放比例
+      // 進入放大態時鎖住頁面捲動並固定縮放比例，並移到正中間
       if (cell.classList.contains('enlarged')) {
         disablePageScroll();
         document.body.classList.add('zoomedOut');
-        lockViewport(); // 新增：固定縮放比例 100%
+        lockViewport(); // 固定縮放比例 100%
+        setTimeout(() => {
+          cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }, 50);
       }
 
       function scratch(e) {
@@ -284,7 +287,7 @@
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
         ctx.globalCompositeOperation = 'destination-out';
 
-        const radius = canvas.width * 0.05;
+        const radius = canvas.width * 0.15; // 加大筆刷半徑
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
@@ -334,11 +337,4 @@
       initScratchCanvas(cell, number);
       if (isWin) cell.dataset.win = "true";
       if (alreadyRevealed) {
-        cell.classList.add('revealed');
-        cell.dataset.revealed = "true";
-        if (isWin) cell.classList.add('win');
-      }
-    }
-  </script>
-</body>
-</html>
+        cell.classList.add('reve
