@@ -285,26 +285,17 @@
         currentEnlargedCell = null; 
         isAnyCellEnlarged = false;
 
-        // ✅ 恢復其他格子的點擊
+        // 恢復其他格子的點擊
         document.querySelectorAll('.cell').forEach(c => {
           c.style.pointerEvents = '';
         });
       }
 
       let scratched = false;
-      let autoShrinkTimer = setTimeout(() => {
-        // ✅ 沒刮過 → 縮小但保持未刮狀態
-        if (!scratched && currentEnlargedCell === cell && cell.classList.contains('enlarged')) {
-          cell.classList.remove('enlarged');
-          resetCellStyle();
-          cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-        }
-      }, 3000);
 
       function scratch(e) {
         if (e.cancelable) e.preventDefault();
         scratched = true;
-        clearTimeout(autoShrinkTimer);
 
         const rect = canvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
@@ -333,23 +324,19 @@
         const ratio = transparent / (sw * sh);
 
         if (ratio > 0.9 && !cell.dataset.revealed) {
-          setTimeout(() => {
-            // ✅ 只有真的刮過才會 revealed
-            if (scratched && currentEnlargedCell === cell) {
-              cell.classList.remove('enlarged');
-              resetCellStyle();
-              cell.classList.add('revealed');
-              cell.dataset.revealed = "true";
+          // ✅ 只有刮到透明度 >90% 才縮小並 revealed
+          cell.classList.remove('enlarged');
+          resetCellStyle();
+          cell.classList.add('revealed');
+          cell.dataset.revealed = "true";
 
-              cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+          cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
 
-              if (cell.dataset.win === "true" && !cell.dataset.alerted) {
-                alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
-                cell.dataset.alerted = "true";
-                cell.classList.add('win');
-              }
-            }
-          }, 3000);
+          if (cell.dataset.win === "true" && !cell.dataset.alerted) {
+            alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
+            cell.dataset.alerted = "true";
+            cell.classList.add('win');
+          }
         }
       }
 
