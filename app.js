@@ -40,7 +40,8 @@ async function loadGames() {
       fileId: FILE_ID,
       alt: 'media'
     });
-    games = JSON.parse(res.data);
+    // 安全處理：可能是字串或物件
+    games = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
 
     // 相容舊格式
     for (const code in games) {
