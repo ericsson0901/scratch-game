@@ -67,7 +67,7 @@ async function loadGame() {
 async function scratch(i, cell) {
   if (cell.querySelector('.hiddenNumber')) return; // 已經刮過就不再刮
 
-  // 放大並白底
+  // 放大
   cell.classList.add('enlarged');
   if (navigator.vibrate) navigator.vibrate(100);
 
@@ -82,8 +82,8 @@ async function scratch(i, cell) {
     // 使用刮刮樂效果顯示號碼（新刮的 → not revealed）
     createScratchCell(cell, data.number, winningNumbers.includes(data.number), false);
 
-    // 刮完後保持白底
-    cell.classList.add('revealed');
+    // ❌ 移除這行，避免強制判定已刮開
+    // cell.classList.add('revealed');
 
     const scratchedCount = document.querySelectorAll('.cell .hiddenNumber').length;
     updateStats(scratchedCount);
