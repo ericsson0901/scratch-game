@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>刮刮樂遊戲</title>
+  <!-- 新增：viewport，可由 JS 動態修改 -->
+  <meta id="viewportMeta" name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="style.css">
   <style>
     /* 廣告遮罩樣式 */
@@ -120,7 +122,7 @@
       width: 100%;
     }
 
-    /* 新增：點開格子時縮小整個網頁 */
+    /* 保留 zoomedOut，但之後會用 viewport 控制縮放 */
     body.zoomedOut {
       transform: scale(0.85);
       transform-origin: top center;
@@ -168,6 +170,16 @@
         window.removeEventListener('touchmove', window._preventScroll);
         window._preventScroll = null;
       }
+    }
+
+    // 新增：控制 viewport
+    function lockViewport() {
+      document.getElementById('viewportMeta')
+        .setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    }
+    function unlockViewport() {
+      document.getElementById('viewportMeta')
+        .setAttribute('content', 'width=device-width, initial-scale=1.0');
     }
 
     // 點擊廣告後顯示登入區塊
@@ -254,13 +266,15 @@
         cell.style.transform = '';
         cell.style.zIndex = '';
         document.body.classList.remove('zoomedOut'); // 恢復正常大小
+        unlockViewport(); // 恢復自動縮放
         enablePageScroll(); // 離開放大態時恢復捲動
       }
 
-      // 進入放大態時鎖住頁面捲動並縮小整個網頁
+      // 進入放大態時鎖住頁面捲動並固定縮放比例
       if (cell.classList.contains('enlarged')) {
         disablePageScroll();
-        document.body.classList.add('zoomedOut'); // 新增：縮小整個頁面
+        document.body.classList.add('zoomedOut');
+        lockViewport(); // 新增：固定縮放比例 100%
       }
 
       function scratch(e) {
