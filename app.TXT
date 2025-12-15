@@ -224,7 +224,7 @@ app.get('/api/admin/game-list', (req, res) => {
   res.json({ codes });
 });
 
-// === Admin 查詢所有遊戲進度 ===
+// === Admin 查詢所有遊戲進度 (全部) ===
 app.get('/api/admin/game-progress', (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || authHeader !== 'Bearer admin-token') {
@@ -243,6 +243,23 @@ app.get('/api/admin/game-progress', (req, res) => {
   }
 
   res.json(progress);
+});
+
+// === Admin 查詢單一遊戲進度 (修正前端呼叫 /api/admin/progress) ===
+app.get('/api/admin/progress', (req, res) => {
+  const authHeader = req.headers.authorization;
+  const { code } = req.query;
+  if (!authHeader || authHeader !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  const scratchedCount = games[code].scratched.filter(n => n !== null).length;
+  const remainingCount = games[code].config.gridSize - scratchedCount;
+  const progressThreshold = games[code].config.progressThreshold;
+  const thresholdReached = scratchedCount >= progressThreshold;
+
+  res.json({ scratchedCount, remainingCount, progressThreshold, thresholdReached });
 });
 
 // === Admin 建立遊戲 ===
@@ -285,18 +302,22 @@ app.post('/api/admin/delete-game', (req, res) => {
   res.json({ message: `遊戲 ${code} 已刪除` });
 });
 
-// === Admin 修改遊戲設定 ===
+// === Admin 修改遊戲設定 (修正為接收展開參數) ===
 app.post('/api/admin/config', (req, res) => {
   const authHeader = req.headers.authorization;
-  const { code, config } = req.body;
+  const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
   if (!authHeader || authHeader !== 'Bearer admin-token') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
-  games[code].config = { ...games[code].config, ...config };
+  if (gridSize) games[code].config.gridSize = gridSize;
+  if (Array.isArray(winNumbers)) games[code].config.winNumbers = winNumbers;
+  if (progressThreshold) games[code].config.progressThreshold = progressThreshold;
+  if (managerPassword) games[code].config.managerPassword = managerPassword;
+
   saveGames();
-  res.json({ message: `遊戲 ${code} 設定已更新` });
+  res.json({ success: true, config: games[code].config });
 });
 
 // === Admin 修改管理員密碼 ===
