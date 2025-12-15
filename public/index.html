@@ -53,7 +53,7 @@
       overflow: hidden;
       transition: transform 0.2s ease;
     }
-    /* 🔥 新增放大效果 */
+    /* 🔥 新增放大效果，其他保持不動 */
     .cell.enlarged {
       transform: scale(1.5);
       z-index: 1000;
@@ -223,10 +223,6 @@
               cell.dataset.alerted = "true";
               cell.classList.add('win');
             }
-
-            // 🔥 放大結束後重置狀態
-            isAnyCellEnlarged = false;
-            currentEnlargedCell = null;
           }, 1500);
         }
       }
