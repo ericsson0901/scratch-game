@@ -183,7 +183,8 @@ app.post('/api/game/:code/scratch', async (req, res) => {
 
       await saveGame(code);
       games[code].lockedUntil = null; // 操作完成解除鎖定
-      return res.json({ number: fakeNumber, message: '尚未達到進度，暫時替換號碼' });
+      // 修改：只回傳替換號碼，不回傳提示訊息
+      return res.json({ number: fakeNumber });
     }
   }
 
@@ -192,7 +193,6 @@ app.post('/api/game/:code/scratch', async (req, res) => {
   games[code].lockedUntil = null; // 操作完成解除鎖定
   res.json({ number });
 });
-
 // === 玩家查詢某場遊戲狀態 ===
 app.get('/api/game/:code', (req, res) => {
   const { code } = req.params;
@@ -212,6 +212,7 @@ app.post('/api/game/:code/heartbeat', (req, res) => {
   games[code].lockedUntil = Date.now() + 2 * 60 * 1000;
   res.json({ success: true, lockedUntil: games[code].lockedUntil });
 });
+
 // === 管理員登入 ===
 app.post('/api/admin', (req, res) => {
   const { password } = req.body;
@@ -234,7 +235,6 @@ app.post('/api/manager/login', (req, res) => {
     res.status(403).json({ error: '場次管理員密碼錯誤' });
   }
 });
-
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -275,6 +275,7 @@ app.post('/api/manager/config/win', async (req, res) => {
   await saveGame(code);
   res.json({ message: `遊戲 ${code} 中獎號碼已更新為 ${games[code].config.winNumbers.join(', ')}` });
 });
+
 // === Admin 查詢所有遊戲代碼清單 ===
 app.get('/api/admin/game-list', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -327,13 +328,14 @@ app.get('/api/admin/progress', (req, res) => {
 // === Admin 建立遊戲 ===
 app.post('/api/admin/create-game', (req, res) => {
   const authHeader = req.headers.authorization;
-  const { code, config } = req.body;
+  const { code, config, managerPassword } = req.body;
   if (!authHeader || authHeader !== 'Bearer admin-token') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   if (games[code]) return res.status(400).json({ error: 'Game already exists' });
 
-  initGame(code, config || defaultConfig);
+  // 修改：把 managerPassword 存進 config
+  initGame(code, { ...(config || defaultConfig), managerPassword });
   res.json({ message: `遊戲 ${code} 已建立` });
 });
 

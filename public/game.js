@@ -64,48 +64,39 @@ async function loadGame() {
     alert('載入遊戲失敗，請確認遊戲代碼是否正確');
   }
 }
+// 玩家刮格子
+app.post('/api/game/:code/scratch', async (req, res) => {
+  const { code } = req.params;
+  const { index } = req.body;
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
-// 刮格子
-async function scratch(i, cell) {
-  if (cell.querySelector('.hiddenNumber')) return; // 已經刮過就不再刮
+  const number = games[code].numbers[index];
+  const scratchedCount = games[code].scratched.filter(n => n !== null).length;
 
-  // 放大效果
-  cell.classList.add('enlarged');
-  if (navigator.vibrate) navigator.vibrate(100);
+  // 未達進度門檻且刮到中獎號碼 → 替換
+  if (scratchedCount < games[code].config.progressThreshold &&
+      games[code].config.winNumbers.includes(number)) {
+    
+    const available = games[code].numbers.filter((n, i) => 
+      games[code].scratched[i] === null && !games[code].config.winNumbers.includes(n)
+    );
 
-  try {
-    const res = await fetch(`/api/game/${gameCode}/scratch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ index: i })
-    });
-    const data = await res.json();
+    if (available.length > 0) {
+      const fakeNumber = available[Math.floor(Math.random() * available.length)];
+      games[code].scratched[index] = fakeNumber;
 
-    if (data.number === null) {
-      // 後端判斷未達進度門檻
-      alert(data.message || '尚未達到進度，號碼隱藏');
-      cell.classList.remove('enlarged');
-      return;
+      const fakeIndex = games[code].numbers.indexOf(fakeNumber);
+      games[code].numbers[fakeIndex] = number;
+
+      await saveGame(code);
+      games[code].lockedUntil = null;
+      return res.json({ number: fakeNumber });
     }
-
-    // 顯示號碼
-    createScratchCell(cell, data.number, winningNumbers.includes(data.number), false);
-
-    // 更新統計
-    const scratchedCount = document.querySelectorAll('.cell.revealed').length;
-    updateStats(scratchedCount);
-
-    // 標記中獎
-    if (winningNumbers.includes(data.number)) {
-      cell.dataset.win = "true";
-    }
-  } catch (e) {
-    alert('刮格子失敗，請稍後再試');
   }
-}
 
-// 更新統計資訊
-function updateStats(scratchedCount) {
-  document.getElementById('scratchedCount').innerText = scratchedCount;
-  document.getElementById('remainingCount').innerText = totalCells - scratchedCount;
-}
+  // 正常情況 → 顯示號碼
+  games[code].scratched[index] = number;
+  await saveGame(code);
+  games[code].lockedUntil = null;
+  res.json({ number });
+});

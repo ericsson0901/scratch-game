@@ -94,76 +94,6 @@
     <button id="createGameBtn">建立遊戲</button>
     <p id="createStatus"></p>
   </div>
-
-  <!-- 修改設定 (已改成標籤式輸入) -->
-  <div class="card" id="config" style="display:none;">
-    <h2>修改遊戲設定</h2>
-    <form id="configForm">
-      <input type="text" name="code" placeholder="遊戲代碼"><br>
-      <input type="number" name="gridSize" value="9" placeholder="格子大小"><br>
-      
-      <!-- 新增標籤式輸入區塊 -->
-      <div id="winNumbersContainer">
-        <input type="number" id="winNumberInput" placeholder="輸入號碼後按 Enter">
-        <div id="winNumbersTags"></div>
-      </div><br>
-      
-      <input type="number" name="progressThreshold" value="3" placeholder="進度門檻"><br>
-      <input type="password" name="managerPassword" placeholder="場次管理員密碼"><br>
-      <button type="submit">更新設定</button>
-    </form>
-    <p id="status"></p>
-  </div>
-  <!-- 重設遊戲 -->
-  <div class="card" id="resetGame" style="display:none;">
-    <h2>重設遊戲</h2>
-    <input type="text" id="resetGameCode" placeholder="輸入要重設的遊戲代碼">
-    <button id="resetGameBtn">重設遊戲</button>
-    <p id="resetStatus"></p>
-  </div>
-
-  <!-- 刪除遊戲 -->
-  <div class="card" id="deleteGame" style="display:none;">
-    <h2>刪除遊戲</h2>
-    <input type="text" id="deleteGameCode" placeholder="輸入要刪除的遊戲代碼">
-    <button id="deleteGameBtn">刪除遊戲</button>
-    <p id="deleteStatus"></p>
-  </div>
-
-  <!-- 查看進度 -->
-  <div class="card" id="progress" style="display:none;">
-    <h2>遊戲進度</h2>
-    <input type="text" id="progressGameCode" placeholder="輸入遊戲代碼">
-    <button id="refreshProgressBtn">查看進度</button>
-    <p>已刮出：<span id="scratchedCountAdmin">0</span></p>
-    <p>剩下：<span id="remainingCountAdmin">0</span></p>
-    <p>進度門檻：<span id="thresholdAdmin">0</span></p>
-    <p>是否達門檻：<span id="thresholdReached">否</span></p>
-    <div id="progressBar"><div id="progressFill"></div></div>
-  </div>
-
-  <!-- 遊戲代碼清單 -->
-  <div class="card" id="gameList" style="display:none;">
-    <h2>目前所有遊戲代碼</h2>
-    <button id="refreshGameListBtn">更新清單</button>
-    <ul id="gameListUl"></ul>
-  </div>
-
-  <!-- 修改管理員密碼 -->
-  <div class="card" id="changeAdminPassword" style="display:none;">
-    <h2>修改管理員密碼</h2>
-    <input type="password" id="newAdminPassword" placeholder="輸入新密碼">
-    <button id="changeAdminPasswordBtn">更新密碼</button>
-    <p id="changeAdminPasswordStatus"></p>
-  </div>
-
-  <!-- 修改全域玩家密碼 -->
-  <div class="card" id="changeGlobalPassword" style="display:none;">
-    <h2>修改全域玩家密碼</h2>
-    <input type="password" id="newGlobalPassword" placeholder="輸入新玩家密碼">
-    <button id="changeGlobalPasswordBtn">更新玩家密碼</button>
-    <p id="changeGlobalPasswordStatus"></p>
-  </div>
   <!-- JS 程式碼 -->
   <script>
     let adminToken = null;
@@ -200,6 +130,7 @@
       const res = await fetch('/api/admin/create-game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
+        // 修改：確保送出 managerPassword
         body: JSON.stringify({ code, managerPassword })
       });
       const data = await res.json();
@@ -229,7 +160,6 @@
       const data = await res.json();
       document.getElementById('deleteStatus').textContent = data.message || data.error;
     });
-
     // 查看遊戲進度
     document.getElementById('refreshProgressBtn').addEventListener('click', async () => {
       const code = document.getElementById('progressGameCode').value;
@@ -291,6 +221,7 @@
       const data = await res.json();
       document.getElementById('changeGlobalPasswordStatus').textContent = data.message || data.error;
     });
+
     // ===== 標籤式輸入 (新增/刪除中獎號碼) =====
     const winNumbers = [];
     const input = document.getElementById('winNumberInput');

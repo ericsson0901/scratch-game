@@ -68,6 +68,8 @@
     <input id="code" placeholder="遊戲代碼">
     <input id="password" type="password" placeholder="場次管理員密碼">
     <button id="loginBtn">登入</button>
+    <!-- 新增登入提示 -->
+    <p id="loginStatus"></p>
   </div>
 
   <div id="managerPanel" style="display:none;">
@@ -90,7 +92,6 @@
       </div>
     </div>
   </div>
-
 <script>
 let managerToken = null;
 let currentCode = null;
@@ -111,7 +112,10 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
     document.getElementById('gameCode').textContent = currentCode;
     document.getElementById('loginCard').style.display='none';
     document.getElementById('managerPanel').style.display='block';
+    // 新增登入成功提示
+    document.getElementById('loginStatus').textContent = '登入成功，正在管理遊戲 ' + currentCode;
   }else{
+    document.getElementById('loginStatus').textContent = data.error || '登入失敗';
     alert(data.error || '登入失敗');
   }
 });
@@ -127,7 +131,6 @@ async function updateGrid(){
   const result = await res.json();
   alert(result.message || result.error || '格子數已更新');
 }
-
 // ===== 標籤式輸入 (新增/刪除中獎號碼) =====
 const winNumbers = [];
 const input = document.getElementById('winNumberInput');
