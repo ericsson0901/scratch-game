@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 const { google } = require('googleapis');
 
@@ -18,6 +19,9 @@ const auth = new google.auth.GoogleAuth({
 });
 const drive = google.drive({ version: 'v3', auth });
 
+// 本地檔案路徑
+const GAMES_FILE = path.join(__dirname, 'games.json');
+
 // 預設設定
 let defaultConfig = {
   gridSize: 9,
@@ -34,15 +38,28 @@ let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 // 多場遊戲狀態
 let games = {};
 
-// 從 Google Drive 載入資料檔案
+// 從本地檔案載入
 async function loadGames() {
   try {
-    const res = await drive.files.get({
-      fileId: FILE_ID,
-      alt: 'media'
-    });
-    // 安全處理：可能是字串或物件
-    games = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+    const data = await fs.promises.readFile(GAMES_FILE, 'utf-8');
+    games = JSON.parse(data);
+  } catch {
+    games = {};
+  }
+}
+
+// 儲存到本地檔案
+async function saveGames() {
+  await fs.promises.writeFile(GAMES_FILE, JSON.stringify(games, null, 2));
+}
+
+// 開機時先從 Google Drive 初始化
+async function initFromDrive() {
+  try {
+    const res = await drive.files.get({ fileId: FILE_ID, alt: 'media' });
+    const data = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+    await fs.promises.writeFile(GAMES_FILE, data);
+    games = JSON.parse(data);
 
     // 相容舊格式
     for (const code in games) {
@@ -56,29 +73,12 @@ async function loadGames() {
     if (games.__adminPassword) adminPassword = games.__adminPassword;
     if (games.__globalPlayerPassword) globalPlayerPassword = games.__globalPlayerPassword;
 
-    console.log('遊戲資料已從 Google Drive 載入');
+    console.log('遊戲資料已從 Google Drive 初始化');
   } catch (err) {
-    console.error('載入遊戲資料失敗:', err);
-    games = {};
+    console.error('初始化失敗，改用本地檔案:', err);
+    await loadGames();
   }
 }
-
-// 儲存資料到 Google Drive
-async function saveGames() {
-  try {
-    await drive.files.update({
-      fileId: FILE_ID,
-      media: {
-        mimeType: 'application/json',
-        body: JSON.stringify(games, null, 2)
-      }
-    });
-    console.log('遊戲資料已更新到 Google Drive');
-  } catch (err) {
-    console.error('儲存遊戲資料失敗:', err);
-  }
-}
-
 // 初始化遊戲
 function initGame(code, config = defaultConfig) {
   let arr = Array.from({ length: config.gridSize }, (_, i) => i + 1);
@@ -94,8 +94,6 @@ function initGame(code, config = defaultConfig) {
   saveGames();
 }
 
-// 啟動時先載入遊戲資料
-loadGames();
 // === 玩家登入 ===
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
@@ -147,7 +145,6 @@ app.post('/api/manager/reset', (req, res) => {
   initGame(code, games[code].config);
   res.json({ message: `遊戲 ${code} 已由場次管理員重製` });
 });
-
 // === Manager 修改格子數 ===
 app.post('/api/manager/config/grid', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -175,6 +172,7 @@ app.post('/api/manager/config/win', (req, res) => {
   saveGames();
   res.json({ message: `遊戲 ${code} 中獎號碼已更新為 ${games[code].config.winNumbers.join(', ')}` });
 });
+
 // === Admin 建立遊戲 ===
 app.post('/api/admin/create-game', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -247,12 +245,10 @@ app.post('/api/game/:code/scratch', (req, res) => {
     return res.status(404).json({ error: 'Game not found' });
   }
 
-  // 如果已經刮過，直接回傳
   if (games[code].scratched[index] !== null) {
     return res.json({ number: games[code].scratched[index] });
   }
 
-  // 取得號碼並更新狀態
   const number = games[code].numbers[index];
   games[code].scratched[index] = number;
 
@@ -310,7 +306,34 @@ app.get('/api/game/:code', (req, res) => {
   res.json(games[code]);
 });
 
-// 啟動伺服器
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// 備份到 Google Drive
+async function backupToDrive() {
+  try {
+    const data = await fs.promises.readFile(GAMES_FILE, 'utf-8');
+    await drive.files.update({
+      fileId: FILE_ID,
+      media: { mimeType: 'application/json', body: data }
+    });
+    console.log('已備份到 Google Drive');
+  } catch (err) {
+    console.error('備份失敗:', err);
+  }
+}
+
+// Admin 手動觸發備份
+app.post('/api/admin/backup', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || authHeader !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  await backupToDrive();
+  res.json({ message: '已備份到 Google Drive' });
 });
+
+// 啟動伺服器，開機先同步 Google Drive
+(async () => {
+  await initFromDrive();
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+})();
