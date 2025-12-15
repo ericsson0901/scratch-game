@@ -53,7 +53,7 @@
       overflow: hidden;
       transition: transform 0.2s ease;
     }
-    /* 放大效果：原始版本 */
+    /* 原始放大效果 */
     .cell.enlarged {
       transform: scale(1.5);
       z-index: 1000;
@@ -141,8 +141,8 @@
     function startHeartbeat(gameCode) {
       currentGameCode = gameCode;
       if (heartbeatInterval) clearInterval(heartbeatInterval);
-      heartbeatInterval = setInterval(sendHeartbeat, 30 * 1000); // 每 30 秒送一次心跳
-      sendHeartbeat(); // 立即送一次心跳
+      heartbeatInterval = setInterval(sendHeartbeat, 30 * 1000);
+      sendHeartbeat();
     }
 
     function stopHeartbeat() {
@@ -159,16 +159,17 @@
       if (typeof startGame === 'function') {
         startGame(gameCode);
       }
-      startHeartbeat(gameCode); // 啟動心跳機制
+      startHeartbeat(gameCode);
     }
 
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
     }
 
-    // 全域變數：目前放大的格子 & 是否有格子放大
+    // 全域變數
     let currentEnlargedCell = null;
     let isAnyCellEnlarged = false;
+
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
