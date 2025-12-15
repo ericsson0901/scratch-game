@@ -53,6 +53,11 @@
       overflow: hidden;
       transition: transform 0.2s ease;
     }
+    /* 🔥 新增放大效果 */
+    .cell.enlarged {
+      transform: scale(1.5);
+      z-index: 1000;
+    }
     .placeholder { width: 60px; height: 60px; visibility: hidden; }
     .cell.revealed { background: #fff; }
     .scratchCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
@@ -99,13 +104,13 @@
     <button id="refreshGameListBtn">更新清單</button>
     <ul id="gameListUl"></ul>
   </div>
+
   <!-- 遊戲區塊 -->
   <div id="game" style="display:none;">
     <h2>中獎號碼：<span id="winning"></span></h2>
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
     <div class="grid" id="grid"></div>
   </div>
-
   <script src="game.js"></script>
   <script>
     // 心跳機制：定期呼叫後端 API
@@ -218,6 +223,10 @@
               cell.dataset.alerted = "true";
               cell.classList.add('win');
             }
+
+            // 🔥 放大結束後重置狀態
+            isAnyCellEnlarged = false;
+            currentEnlargedCell = null;
           }, 1500);
         }
       }
@@ -225,6 +234,7 @@
       canvas.addEventListener('touchmove', scratch, { passive: false });
       canvas.addEventListener('mousemove', scratch);
     }
+
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (isAnyCellEnlarged && !cell.classList.contains('enlarged')) {
         return;

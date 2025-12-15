@@ -88,7 +88,7 @@ async function scratch(index, cell) {
       cell,
       data.number,
       winningNumbers.includes(data.number),
-      false
+      false // 確保第一次刮格子時會觸發放大效果
     );
 
     // 更新統計
