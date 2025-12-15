@@ -90,7 +90,7 @@
   <div id="login" style="display:none;">
     <h2>請輸入電話號碼</h2>
     <input type="password" id="password" placeholder="輸入電話號碼">
-    <button id="loginBtn">登入</button>
+    <button id="loginBtn">送出</button>
   </div>
 
   <!-- 選擇遊戲代碼區塊 -->
@@ -264,7 +264,7 @@
       document.getElementById('login').style.display = 'block';
     });
 
-    // 登入事件：輸入密碼後顯示選擇遊戲代碼
+    // 登入事件：輸入密碼後顯示選擇遊戲代碼並載入清單
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const password = document.getElementById('password').value;
 
@@ -277,6 +277,22 @@
       if (res.ok) {
         document.getElementById('login').style.display = 'none';
         document.getElementById('selectGame').style.display = 'block';
+
+        // 載入遊戲代碼清單
+        const listRes = await fetch('/api/game-list');
+        if (listRes.ok) {
+          const data = await listRes.json();
+          const ul = document.getElementById('gameListUl');
+          ul.innerHTML = '';
+          data.codes.forEach(code => {
+            const li = document.createElement('li');
+            const btn = document.createElement('button');
+            btn.textContent = code;
+            btn.onclick = () => startSelectedGame(code);
+            li.appendChild(btn);
+            ul.appendChild(li);
+          });
+        }
       } else {
         alert('密碼錯誤，請重新輸入');
       }
