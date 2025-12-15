@@ -14,13 +14,17 @@ const PORT = process.env.PORT || 3000;
 
 // Google Drive 設定
 const FILE_ID = process.env.DRIVE_FILE_ID; // 在環境變數設定檔案 ID
+
+if (!process.env.GOOGLE_CREDENTIALS) {
+  throw new Error("Missing GOOGLE_CREDENTIALS environment variable");
+}
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS); // 從環境變數讀取 Service Account JSON
+
 const auth = new google.auth.GoogleAuth({
   credentials,
   scopes: ['https://www.googleapis.com/auth/drive']
 });
 const drive = google.drive({ version: 'v3', auth });
-
 // 本地檔案資料夾 (分檔儲存)
 const GAMES_DIR = path.join(__dirname, 'games');
 
@@ -107,7 +111,6 @@ async function initFromDrive() {
     console.error('初始化失敗，改用本地檔案:', err);
   }
 }
-
 // 初始化遊戲
 function initGame(code, config = defaultConfig) {
   let arr = Array.from({ length: config.gridSize }, (_, i) => i + 1);
@@ -139,6 +142,7 @@ app.get('/api/game-list', (req, res) => {
   const codes = Object.keys(games).filter(code => !code.startsWith('__'));
   res.json({ codes });
 });
+
 // === 玩家刮格子 ===
 app.post('/api/game/:code/scratch', async (req, res) => {
   const { code } = req.params;
@@ -202,15 +206,15 @@ app.get('/api/game/:code', (req, res) => {
   res.json(games[code]);
 });
 
-// === 玩家心跳 API (修改版：不再延長鎖定時間) ===
+// === 玩家心跳 API ===
 app.post('/api/game/:code/heartbeat', (req, res) => {
   const { code } = req.params;
   if (!games[code]) {
     return res.status(404).json({ error: 'Game not found' });
   }
-  // 僅回傳目前鎖定狀態，不延長鎖定
   res.json({ success: true, lockedUntil: games[code].lockedUntil });
 });
+
 // === 管理員登入 ===
 app.post('/api/admin', (req, res) => {
   const { password } = req.body;
@@ -233,7 +237,6 @@ app.post('/api/manager/login', (req, res) => {
     res.status(403).json({ error: '場次管理員密碼錯誤' });
   }
 });
-
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -419,8 +422,9 @@ async function backupToDrive() {
     };
 
     await drive.files.update({
-      fileId: FILE_ID,   // ✅ 這裡要用 FILE_ID，不是 FILE
-      media
+      fileId: FILE_ID,
+      media,
+      resource: { name: 'games.zip' } // 加上 resource
     });
 
     console.log('已備份整個 games 資料夾到 Google Drive');
@@ -428,3 +432,9 @@ async function backupToDrive() {
     console.error('備份失敗:', err);
   }
 }
+
+// 啟動伺服器並初始化
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  initFromDrive(); // 啟動時下載並載入遊戲資料
+});
