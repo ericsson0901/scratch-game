@@ -53,7 +53,6 @@
       overflow: hidden;
       transition: transform 0.2s ease;
     }
-    /* 原始放大效果 */
     .cell.enlarged {
       transform: scale(1.5);
       z-index: 1000;
@@ -166,11 +165,8 @@
       document.getElementById('winning').textContent = numbers.join(', ');
     }
 
-    // 全域變數
     let currentEnlargedCell = null;
     let isAnyCellEnlarged = false;
-
-    // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
       canvas.className = 'scratchCanvas';
@@ -282,7 +278,7 @@
 
         const listRes = await fetch('/api/game-list');
         if (listRes.ok) {
-          const data = await listRes.json();
+          const data = await res.json();
           const ul = document.getElementById('gameListUl');
           ul.innerHTML = '';
           data.codes.forEach(code => {
