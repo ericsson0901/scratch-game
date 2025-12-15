@@ -9,7 +9,9 @@
   "dependencies": {
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
-    "googleapis": "^168.0.0"
+    "googleapis": "^168.0.0",
+    "archiver": "^6.0.0",
+    "unzipper": "^0.10.11"
   },
   "engines": {
     "node": ">=16"
