@@ -264,6 +264,24 @@
       document.getElementById('login').style.display = 'block';
     });
 
+    // 登入事件：輸入密碼後顯示選擇遊戲代碼
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const password = document.getElementById('password').value;
+
+      const res = await fetch('/api/player/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+
+      if (res.ok) {
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('selectGame').style.display = 'block';
+      } else {
+        alert('密碼錯誤，請重新輸入');
+      }
+    });
+
     // 當玩家離開頁面時停止心跳
     window.addEventListener('beforeunload', stopHeartbeat);
   </script>
