@@ -55,7 +55,6 @@
       overflow: hidden;
       transition: transform 0.2s ease;
     }
-    /* 放大時像手機全螢幕一樣 */
     .cell.enlarged {
       position: fixed;
       top: 50%;
@@ -66,13 +65,11 @@
       background: #fff;
       z-index: 1000;
     }
-    /* 獨立佔位符元素，保持空白 */
     .placeholder {
       width: 60px;
       height: 60px;
-      visibility: hidden; /* 看不到，但仍佔位 */
+      visibility: hidden;
     }
-    /* 刮完保持白底 */
     .cell.revealed {
       background: #fff;
     }
@@ -80,7 +77,6 @@
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      /* 阻止 iPhone Safari 將觸控解讀成捲動 */
       touch-action: none;
     }
     .hiddenNumber {
@@ -92,16 +88,13 @@
       pointer-events: none;
       transition: font-size 0.2s ease;
     }
-    /* 放大時字體按比例放大 */
     .cell.enlarged .hiddenNumber {
       font-size: 20vw;
     }
-    /* 中獎而且已經刮完縮小後才變金色 */
     .cell.win.revealed .hiddenNumber {
       color: gold;
       font-weight: bold;
     }
-    /* 遊戲代碼清單樣式 */
     #gameListUl {
       list-style: none;
       padding: 0;
@@ -121,14 +114,10 @@
     #gameListUl button:hover {
       background: #45a049;
     }
-
-    /* 修改：移除 position: fixed 避免 iPhone 定位錯亂 */
     body.noscroll {
       overflow: hidden;
       width: 100%;
     }
-
-    /* 保留 zoomedOut，但之後會用 viewport 控制縮放 */
     body.zoomedOut {
       transform: scale(0.85);
       transform-origin: top center;
@@ -148,7 +137,6 @@
     <input type="password" id="password" placeholder="輸入電話號碼">
     <button id="loginBtn">登入</button>
   </div>
-
   <!-- 選擇遊戲代碼區塊 -->
   <div id="selectGame" style="display:none;">
     <h2>選擇遊戲代碼</h2>
@@ -164,82 +152,49 @@
   </div>
   <script src="game.js"></script>
   <script>
-    // 全域禁止捲動控制
-    function disablePageScroll() {
-      document.body.classList.add('noscroll');
-      window._preventScroll = (e) => { if (e.cancelable) e.preventDefault(); };
-      window.addEventListener('touchmove', window._preventScroll, { passive: false });
-    }
-    function enablePageScroll() {
-      document.body.classList.remove('noscroll');
-      if (window._preventScroll) {
-        window.removeEventListener('touchmove', window._preventScroll);
-        window._preventScroll = null;
-      }
-    }
+    // 心跳機制：定期呼叫後端 API
+    let heartbeatInterval = null;
+    let currentGameCode = null;
 
-    // 控制 viewport
-    function lockViewport() {
-      document.getElementById('viewportMeta')
-        .setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
-    }
-    function unlockViewport() {
-      document.getElementById('viewportMeta')
-        .setAttribute('content', 'width=device-width, initial-scale=1.0');
-    }
-
-    // 點擊廣告後顯示登入區塊
-    document.getElementById('closeAdBtn').addEventListener('click', () => {
-      document.getElementById('adOverlay').style.display = 'none';
-      document.getElementById('login').style.display = 'block';
-    });
-
-    // 登入驗證
-    document.getElementById('loginBtn').addEventListener('click', async () => {
-      const password = document.getElementById('password').value;
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      });
-      if (res.ok) {
-        document.getElementById('login').style.display = 'none';
-        document.getElementById('selectGame').style.display = 'block';
-        loadGameList();
-      } else {
-        const err = await res.json();
-        alert(err.error || '密碼錯誤');
-      }
-    });
-
-    // 載入遊戲代碼清單
-    async function loadGameList() {
-      const res = await fetch('/api/game-list');
-      if (res.ok) {
-        const data = await res.json();
-        const ul = document.getElementById('gameListUl');
-        ul.innerHTML = '';
-        data.codes.forEach(code => {
-          const li = document.createElement('li');
-          const btn = document.createElement('button');
-          btn.textContent = code;
-          btn.onclick = () => startSelectedGame(code);
-          li.appendChild(btn);
-          ul.appendChild(li);
+    async function sendHeartbeat() {
+      if (!currentGameCode) return;
+      try {
+        const res = await fetch(`/api/game/${currentGameCode}/heartbeat`, {
+          method: 'POST'
         });
-      } else {
-        alert('無法取得遊戲清單');
+        if (res.ok) {
+          const data = await res.json();
+          console.log(`Heartbeat sent, lockedUntil=${data.lockedUntil}`);
+        }
+      } catch (err) {
+        console.error('Heartbeat error:', err);
       }
     }
 
-    document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
+    function startHeartbeat(gameCode) {
+      currentGameCode = gameCode;
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      // 每 30 秒送一次心跳
+      heartbeatInterval = setInterval(sendHeartbeat, 30 * 1000);
+      // 立即送一次心跳
+      sendHeartbeat();
+    }
 
+    function stopHeartbeat() {
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+      currentGameCode = null;
+    }
     function startSelectedGame(gameCode) {
       document.getElementById('selectGame').style.display = 'none';
       document.getElementById('game').style.display = 'block';
       if (typeof startGame === 'function') {
         startGame(gameCode);
       }
+      // 啟動心跳機制
+      startHeartbeat(gameCode);
     }
 
     function showWinningNumbers(numbers) {
@@ -249,6 +204,7 @@
     // 全域變數：目前放大的格子 & 是否有格子放大
     let currentEnlargedCell = null;
     let isAnyCellEnlarged = false;
+
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -285,7 +241,6 @@
         currentEnlargedCell = null; 
         isAnyCellEnlarged = false;
 
-        // 恢復其他格子的點擊
         document.querySelectorAll('.cell').forEach(c => {
           c.style.pointerEvents = '';
         });
@@ -324,7 +279,6 @@
         const ratio = transparent / (sw * sh);
 
         if (ratio > 0.9 && !cell.dataset.revealed) {
-          // ✅ 延遲 1.5 秒再縮小，避免太快
           setTimeout(() => {
             cell.classList.remove('enlarged');
             resetCellStyle();
@@ -338,7 +292,7 @@
               cell.dataset.alerted = "true";
               cell.classList.add('win');
             }
-          }, 1500); // 延遲 1500 毫秒
+          }, 1500);
         }
       }
 
@@ -348,7 +302,6 @@
     }
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
-      // ✅ 如果有格子正在放大，其他格子不能被點擊
       if (isAnyCellEnlarged && !cell.classList.contains('enlarged')) {
         return;
       }
@@ -366,7 +319,6 @@
           currentEnlargedCell = cell;
           isAnyCellEnlarged = true;
 
-          // ✅ 放大時禁止其他格子點擊
           document.querySelectorAll('.cell').forEach(c => {
             if (c !== cell) {
               c.style.pointerEvents = 'none';
@@ -385,6 +337,9 @@
         if (isWin) cell.classList.add('win');
       }
     }
+
+    // 當玩家離開頁面時停止心跳
+    window.addEventListener('beforeunload', stopHeartbeat);
   </script>
 </body>
 </html>

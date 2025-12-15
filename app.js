@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 const { google } = require('googleapis');
+const archiver = require('archiver'); // 新增壓縮套件
+const unzipper = require('unzipper'); // 新增解壓縮套件
 
 const app = express();
 app.use(express.json());
@@ -19,8 +21,8 @@ const auth = new google.auth.GoogleAuth({
 });
 const drive = google.drive({ version: 'v3', auth });
 
-// 本地檔案路徑
-const GAMES_FILE = path.join(__dirname, 'games.json');
+// 本地檔案資料夾 (分檔儲存)
+const GAMES_DIR = path.join(__dirname, 'games');
 
 // 預設設定
 let defaultConfig = {
@@ -38,45 +40,71 @@ let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 // 多場遊戲狀態
 let games = {};
 
-// 從本地檔案載入
-async function loadGames() {
+// 確保資料夾存在
+if (!fs.existsSync(GAMES_DIR)) {
+  fs.mkdirSync(GAMES_DIR);
+}
+
+// 載入單一遊戲
+async function loadGame(code) {
   try {
-    const data = await fs.promises.readFile(GAMES_FILE, 'utf-8');
-    games = JSON.parse(data);
+    const filePath = path.join(GAMES_DIR, `${code}.json`);
+    const data = await fs.promises.readFile(filePath, 'utf-8');
+    games[code] = JSON.parse(data);
   } catch {
-    games = {};
+    games[code] = null;
   }
 }
 
-// 儲存到本地檔案
-async function saveGames() {
-  await fs.promises.writeFile(GAMES_FILE, JSON.stringify(games, null, 2));
+// 儲存單一遊戲
+async function saveGame(code) {
+  const filePath = path.join(GAMES_DIR, `${code}.json`);
+  await fs.promises.writeFile(filePath, JSON.stringify(games[code], null, 2));
 }
 
-// 開機時先從 Google Drive 初始化
+// 壓縮整個 games 資料夾成 zip
+async function createGamesZip() {
+  return new Promise((resolve, reject) => {
+    const outputPath = path.join(__dirname, 'games.zip');
+    const output = fs.createWriteStream(outputPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    output.on('close', () => resolve(outputPath));
+    archive.on('error', err => reject(err));
+
+    archive.pipe(output);
+    archive.directory(GAMES_DIR, false);
+    archive.finalize();
+  });
+}
+
+// 從 Google Drive 初始化 (下載 zip 並解壓縮)
 async function initFromDrive() {
   try {
-    const res = await drive.files.get({ fileId: FILE_ID, alt: 'media' });
-    const data = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
-    await fs.promises.writeFile(GAMES_FILE, data);
-    games = JSON.parse(data);
+    const destPath = path.join(__dirname, 'games.zip');
+    const dest = fs.createWriteStream(destPath);
 
-    // 相容舊格式
-    for (const code in games) {
-      const config = games[code].config;
-      if (typeof config?.winNumber === 'number') {
-        config.winNumbers = [config.winNumber];
-        delete config.winNumber;
+    const res = await drive.files.get({ fileId: FILE_ID, alt: 'media' }, { responseType: 'stream' });
+    await new Promise((resolve, reject) => {
+      res.data.pipe(dest);
+      res.data.on('end', resolve);
+      res.data.on('error', reject);
+    });
+
+    await fs.createReadStream(destPath).pipe(unzipper.Extract({ path: GAMES_DIR })).promise();
+
+    // 載入所有遊戲檔案到記憶體
+    const files = await fs.promises.readdir(GAMES_DIR);
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const code = path.basename(file, '.json');
+        await loadGame(code);
       }
     }
-
-    if (games.__adminPassword) adminPassword = games.__adminPassword;
-    if (games.__globalPlayerPassword) globalPlayerPassword = games.__globalPlayerPassword;
 
     console.log('遊戲資料已從 Google Drive 初始化');
   } catch (err) {
     console.error('初始化失敗，改用本地檔案:', err);
-    await loadGames();
   }
 }
 
@@ -90,9 +118,10 @@ function initGame(code, config = defaultConfig) {
   games[code] = {
     numbers: arr,
     scratched: Array(config.gridSize).fill(null),
-    config: { ...config }
+    config: { ...config },
+    lockedUntil: null // 新增心跳機制用的鎖定時間
   };
-  saveGames();
+  saveGame(code);
 }
 // === 玩家登入 ===
 app.post('/api/login', (req, res) => {
@@ -111,7 +140,7 @@ app.get('/api/game-list', (req, res) => {
 });
 
 // === 玩家刮格子 ===
-app.post('/api/game/:code/scratch', (req, res) => {
+app.post('/api/game/:code/scratch', async (req, res) => {
   const { code } = req.params;
   const { index } = req.body;
 
@@ -119,8 +148,18 @@ app.post('/api/game/:code/scratch', (req, res) => {
     return res.status(404).json({ error: 'Game not found' });
   }
 
+  // 檢查是否鎖定中 (心跳機制)
+  const now = Date.now();
+  if (games[code].lockedUntil && games[code].lockedUntil > now) {
+    return res.status(403).json({ error: '遊戲正在進行中，請稍候再試' });
+  }
+
+  // 設定鎖定 2 分鐘
+  games[code].lockedUntil = now + 2 * 60 * 1000;
+
   // 如果已經刮過，直接回傳
   if (games[code].scratched[index] !== null) {
+    games[code].lockedUntil = null; // 操作完成解除鎖定
     return res.json({ number: games[code].scratched[index] });
   }
 
@@ -131,28 +170,26 @@ app.post('/api/game/:code/scratch', (req, res) => {
   if (scratchedCount < games[code].config.progressThreshold &&
       games[code].config.winNumbers.includes(number)) {
     
-    // 找一個還沒刮開、不是中獎號碼的格子
     const available = games[code].numbers.filter((n, i) => 
       games[code].scratched[i] === null && !games[code].config.winNumbers.includes(n)
     );
 
     if (available.length > 0) {
-      // 隨機挑一個替代號碼
       const fakeNumber = available[Math.floor(Math.random() * available.length)];
       games[code].scratched[index] = fakeNumber;
 
-      // 把原本的中獎號碼移到替代號碼的位置
       const fakeIndex = games[code].numbers.indexOf(fakeNumber);
       games[code].numbers[fakeIndex] = number;
 
-      saveGames();
+      await saveGame(code);
+      games[code].lockedUntil = null; // 操作完成解除鎖定
       return res.json({ number: fakeNumber, message: '尚未達到進度，暫時替換號碼' });
     }
   }
 
-  // 正常顯示號碼
   games[code].scratched[index] = number;
-  saveGames();
+  await saveGame(code);
+  games[code].lockedUntil = null; // 操作完成解除鎖定
   res.json({ number });
 });
 
@@ -163,6 +200,17 @@ app.get('/api/game/:code', (req, res) => {
     return res.status(404).json({ error: 'Game not found' });
   }
   res.json(games[code]);
+});
+
+// === 玩家心跳 API ===
+app.post('/api/game/:code/heartbeat', (req, res) => {
+  const { code } = req.params;
+  if (!games[code]) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+  // 每次心跳延長鎖定 2 分鐘
+  games[code].lockedUntil = Date.now() + 2 * 60 * 1000;
+  res.json({ success: true, lockedUntil: games[code].lockedUntil });
 });
 // === 管理員登入 ===
 app.post('/api/admin', (req, res) => {
@@ -201,7 +249,7 @@ app.post('/api/manager/reset', (req, res) => {
 });
 
 // === Manager 修改格子數 ===
-app.post('/api/manager/config/grid', (req, res) => {
+app.post('/api/manager/config/grid', async (req, res) => {
   const authHeader = req.headers.authorization;
   const { code, gridSize } = req.body;
   if (!authHeader || authHeader !== `Bearer manager-token-${code}`) {
@@ -210,12 +258,12 @@ app.post('/api/manager/config/grid', (req, res) => {
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
   games[code].config.gridSize = gridSize;
-  saveGames();
+  await saveGame(code);
   res.json({ message: `遊戲 ${code} 格子數已更新為 ${gridSize}` });
 });
 
 // === Manager 修改中獎號碼 ===
-app.post('/api/manager/config/win', (req, res) => {
+app.post('/api/manager/config/win', async (req, res) => {
   const authHeader = req.headers.authorization;
   const { code, winNumbers } = req.body;
   if (!authHeader || authHeader !== `Bearer manager-token-${code}`) {
@@ -224,7 +272,7 @@ app.post('/api/manager/config/win', (req, res) => {
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
   games[code].config.winNumbers = Array.isArray(winNumbers) ? winNumbers : games[code].config.winNumbers;
-  saveGames();
+  await saveGame(code);
   res.json({ message: `遊戲 ${code} 中獎號碼已更新為 ${games[code].config.winNumbers.join(', ')}` });
 });
 // === Admin 查詢所有遊戲代碼清單 ===
@@ -303,7 +351,7 @@ app.post('/api/admin/reset', (req, res) => {
 });
 
 // === Admin 刪除遊戲 ===
-app.post('/api/admin/delete-game', (req, res) => {
+app.post('/api/admin/delete-game', async (req, res) => {
   const authHeader = req.headers.authorization;
   const { code } = req.body;
   if (!authHeader || authHeader !== 'Bearer admin-token') {
@@ -312,12 +360,13 @@ app.post('/api/admin/delete-game', (req, res) => {
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
   delete games[code];
-  saveGames();
+  const filePath = path.join(GAMES_DIR, `${code}.json`);
+  try { await fs.promises.unlink(filePath); } catch {}
   res.json({ message: `遊戲 ${code} 已刪除` });
 });
 
 // === Admin 修改遊戲設定 ===
-app.post('/api/admin/config', (req, res) => {
+app.post('/api/admin/config', async (req, res) => {
   const authHeader = req.headers.authorization;
   const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
   if (!authHeader || authHeader !== 'Bearer admin-token') {
@@ -330,7 +379,7 @@ app.post('/api/admin/config', (req, res) => {
   if (progressThreshold) games[code].config.progressThreshold = progressThreshold;
   if (managerPassword) games[code].config.managerPassword = managerPassword;
 
-  saveGames();
+  await saveGame(code);
   res.json({ success: true, config: games[code].config });
 });
 
@@ -344,7 +393,6 @@ app.post('/api/admin/change-password', (req, res) => {
 
   adminPassword = newPassword;
   games.__adminPassword = newPassword;
-  saveGames();
   res.json({ message: '管理員密碼已更新' });
 });
 
@@ -358,19 +406,24 @@ app.post('/api/admin/change-global-password', (req, res) => {
 
   globalPlayerPassword = newPassword;
   games.__globalPlayerPassword = newPassword;
-  saveGames();
   res.json({ message: '全域玩家密碼已更新' });
 });
 
-// 備份到 Google Drive
+// 備份到 Google Drive (壓縮整個 games 資料夾上傳)
 async function backupToDrive() {
   try {
-    const data = await fs.promises.readFile(GAMES_FILE, 'utf-8');
+    const zipPath = await createGamesZip();
+    const media = {
+      mimeType: 'application/zip',
+      body: fs.createReadStream(zipPath)
+    };
+
     await drive.files.update({
       fileId: FILE_ID,
-      media: { mimeType: 'application/json', body: data }
+      media
     });
-    console.log('已備份到 Google Drive');
+
+    console.log('已備份整個 games 資料夾到 Google Drive');
   } catch (err) {
     console.error('備份失敗:', err);
   }
