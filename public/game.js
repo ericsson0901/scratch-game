@@ -14,7 +14,10 @@ function startGame(code) {
 async function loadGame() {
   try {
     const state = await fetch(`/api/game/${encodeURIComponent(gameCode)}`)
-      .then(r => r.json());
+      .then(r => {
+        if (!r.ok) throw new Error("Game not found");
+        return r.json();
+      });
 
     // 從後端 config 讀取設定
     winningNumbers = state.config.winNumbers || [];
@@ -64,39 +67,40 @@ async function loadGame() {
     alert('載入遊戲失敗，請確認遊戲代碼是否正確');
   }
 }
-// 玩家刮格子
-app.post('/api/game/:code/scratch', async (req, res) => {
-  const { code } = req.params;
-  const { index } = req.body;
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
-  const number = games[code].numbers[index];
-  const scratchedCount = games[code].scratched.filter(n => n !== null).length;
+// 玩家刮格子 (前端呼叫後端 API)
+async function scratch(index, cell) {
+  try {
+    const res = await fetch(`/api/game/${encodeURIComponent(gameCode)}/scratch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index })
+    });
 
-  // 未達進度門檻且刮到中獎號碼 → 替換
-  if (scratchedCount < games[code].config.progressThreshold &&
-      games[code].config.winNumbers.includes(number)) {
-    
-    const available = games[code].numbers.filter((n, i) => 
-      games[code].scratched[i] === null && !games[code].config.winNumbers.includes(n)
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || '刮格子失敗');
+      return;
+    }
+
+    const data = await res.json();
+    createScratchCell(
+      cell,
+      data.number,
+      winningNumbers.includes(data.number),
+      false
     );
 
-    if (available.length > 0) {
-      const fakeNumber = available[Math.floor(Math.random() * available.length)];
-      games[code].scratched[index] = fakeNumber;
-
-      const fakeIndex = games[code].numbers.indexOf(fakeNumber);
-      games[code].numbers[fakeIndex] = number;
-
-      await saveGame(code);
-      games[code].lockedUntil = null;
-      return res.json({ number: fakeNumber });
-    }
+    // 更新統計
+    const scratchedCount = document.querySelectorAll('.cell.revealed').length;
+    updateStats(scratchedCount);
+  } catch (e) {
+    alert('刮格子失敗，請稍後再試');
   }
+}
 
-  // 正常情況 → 顯示號碼
-  games[code].scratched[index] = number;
-  await saveGame(code);
-  games[code].lockedUntil = null;
-  res.json({ number });
-});
+// 更新統計顯示
+function updateStats(scratchedCount) {
+  document.getElementById('scratchedCount').innerText = scratchedCount;
+  document.getElementById('remainingCount').innerText = totalCells - scratchedCount;
+}
