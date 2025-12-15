@@ -6,6 +6,7 @@
   <meta id="viewportMeta" name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="style.css">
   <style>
+    /* 廣告遮罩樣式 */
     #adOverlay {
       position: fixed;
       top: 0; left: 0;
@@ -53,14 +54,19 @@
       overflow: hidden;
       transition: transform 0.2s ease;
     }
-    /* 🔥 新增放大效果，其他保持不動 */
+    /* 🔥 放大效果：回到你最一開始的設定 */
     .cell.enlarged {
       transform: scale(1.5);
       z-index: 1000;
     }
     .placeholder { width: 60px; height: 60px; visibility: hidden; }
     .cell.revealed { background: #fff; }
-    .scratchCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
+    .scratchCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      touch-action: none;
+    }
     .hiddenNumber {
       position: absolute;
       top: 50%; left: 50%;
@@ -69,7 +75,10 @@
       color: #000;
       pointer-events: none;
     }
-    .cell.win.revealed .hiddenNumber { color: gold; font-weight: bold; }
+    .cell.win.revealed .hiddenNumber {
+      color: gold;
+      font-weight: bold;
+    }
     #gameListUl { list-style: none; padding: 0; }
     #gameListUl li { margin: 10px 0; }
     #gameListUl button {
@@ -161,7 +170,6 @@
     // 全域變數：目前放大的格子 & 是否有格子放大
     let currentEnlargedCell = null;
     let isAnyCellEnlarged = false;
-
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -179,11 +187,8 @@
       cell.appendChild(span);
       cell.appendChild(canvas);
 
-      let scratched = false;
-
       function scratch(e) {
         if (e.cancelable) e.preventDefault();
-        scratched = true;
 
         const rect = canvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
@@ -195,34 +200,28 @@
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        cell.dataset.scratched = "true";
-
-        const numberRect = span.getBoundingClientRect();
-        const canvasRect = canvas.getBoundingClientRect();
-        const sx = numberRect.left - canvasRect.left;
-        const sy = numberRect.top - canvasRect.top;
-        const sw = numberRect.width;
-        const sh = numberRect.height;
-
-        const pixels = ctx.getImageData(sx, sy, sw, sh).data;
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
         let transparent = 0;
         for (let i = 3; i < pixels.length; i += 4) {
           if (pixels[i] === 0) transparent++;
         }
-        const ratio = transparent / (sw * sh);
+        const ratio = transparent / (canvas.width * canvas.height);
 
-        if (ratio > 0.9 && !cell.dataset.revealed) {
+        if (ratio > 0.4 && !cell.dataset.revealed) {
           setTimeout(() => {
             cell.classList.remove('enlarged');
             cell.classList.add('revealed');
             cell.dataset.revealed = "true";
-            cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
 
             if (cell.dataset.win === "true" && !cell.dataset.alerted) {
               alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
               cell.dataset.alerted = "true";
               cell.classList.add('win');
             }
+
+            // 放大結束後重置狀態
+            isAnyCellEnlarged = false;
+            currentEnlargedCell = null;
           }, 1500);
         }
       }
@@ -264,16 +263,15 @@
       }
     }
 
-    // 廣告遮罩控制：點擊「聯絡我們」後顯示登入區塊
+    // 廣告遮罩控制
     document.getElementById('closeAdBtn').addEventListener('click', () => {
       document.getElementById('adOverlay').style.display = 'none';
       document.getElementById('login').style.display = 'block';
     });
 
-    // 登入事件：輸入密碼後顯示選擇遊戲代碼並載入清單
+    // 登入事件
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const password = document.getElementById('password').value;
-
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -284,7 +282,6 @@
         document.getElementById('login').style.display = 'none';
         document.getElementById('selectGame').style.display = 'block';
 
-        // 載入遊戲代碼清單
         const listRes = await fetch('/api/game-list');
         if (listRes.ok) {
           const data = await listRes.json();
