@@ -81,6 +81,13 @@ async function scratch(i, cell) {
     });
     const data = await res.json();
 
+    if (data.number === null) {
+      // 後端判斷未達進度門檻
+      alert(data.message || '尚未達到進度，號碼隱藏');
+      cell.classList.remove('enlarged');
+      return;
+    }
+
     // 顯示號碼
     createScratchCell(cell, data.number, winningNumbers.includes(data.number), false);
 
