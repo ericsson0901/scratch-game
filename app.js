@@ -18,7 +18,22 @@ const FILE_ID = process.env.DRIVE_FILE_ID; // 在環境變數設定檔案 ID
 if (!process.env.GOOGLE_CREDENTIALS) {
   throw new Error("Missing GOOGLE_CREDENTIALS environment variable");
 }
-const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS); // 從環境變數讀取 Service Account JSON
+
+// === 修改的地方：支援 Base64 或 JSON 字串 ===
+let rawCreds = process.env.GOOGLE_CREDENTIALS;
+
+// 如果是 Base64 編碼，先解碼
+if (rawCreds && !rawCreds.trim().startsWith("{")) {
+  rawCreds = Buffer.from(rawCreds, "base64").toString("utf8");
+}
+
+let credentials;
+try {
+  credentials = JSON.parse(rawCreds);
+} catch (err) {
+  console.error("解析 GOOGLE_CREDENTIALS 失敗:", err);
+  throw err;
+}
 
 const auth = new google.auth.GoogleAuth({
   credentials,
@@ -214,7 +229,6 @@ app.post('/api/game/:code/heartbeat', (req, res) => {
   }
   res.json({ success: true, lockedUntil: games[code].lockedUntil });
 });
-
 // === 管理員登入 ===
 app.post('/api/admin', (req, res) => {
   const { password } = req.body;
@@ -237,6 +251,7 @@ app.post('/api/manager/login', (req, res) => {
     res.status(403).json({ error: '場次管理員密碼錯誤' });
   }
 });
+
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const authHeader = req.headers.authorization;
