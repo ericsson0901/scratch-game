@@ -71,6 +71,7 @@ async function loadGame(code) {
     const data = await fs.promises.readFile(filePath, 'utf-8');
     games[code] = JSON.parse(data);
   } catch {
+    console.warn(`載入遊戲失敗: ${code}`);
     games[code] = null;
   }
 }
@@ -122,8 +123,18 @@ async function initFromDrive() {
     }
 
     console.log('遊戲資料已從 Google Drive 初始化');
+    console.log('目前載入的遊戲代碼:', Object.keys(games));
   } catch (err) {
     console.error('初始化失敗，改用本地檔案:', err);
+    // 保留現有的 games，不要清空
+    const files = await fs.promises.readdir(GAMES_DIR);
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const code = path.basename(file, '.json');
+        await loadGame(code);
+      }
+    }
+    console.log('目前載入的遊戲代碼(本地):', Object.keys(games));
   }
 }
 // 初始化遊戲
@@ -140,6 +151,7 @@ function initGame(code, config = defaultConfig) {
     lockedUntil: null // 新增心跳機制用的鎖定時間
   };
   saveGame(code);
+  console.log(`遊戲 ${code} 已初始化`);
 }
 
 // === 玩家登入 ===
@@ -155,6 +167,7 @@ app.post('/api/login', (req, res) => {
 // === 玩家查詢遊戲清單 ===
 app.get('/api/game-list', (req, res) => {
   const codes = Object.keys(games).filter(code => !code.startsWith('__'));
+  console.log('玩家 API game-list:', codes);
   res.json({ codes });
 });
 
@@ -301,6 +314,7 @@ app.get('/api/admin/game-list', (req, res) => {
   }
 
   const codes = Object.keys(games).filter(code => !code.startsWith('__'));
+  console.log('管理員 API game-list:', codes);
   res.json({ codes });
 });
 
@@ -451,5 +465,7 @@ async function backupToDrive() {
 // 啟動伺服器並初始化
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  initFromDrive(); // 啟動時下載並載入遊戲資料
+  initFromDrive().then(() => {
+    console.log('伺服器啟動完成，目前遊戲代碼:', Object.keys(games));
+  });
 });
