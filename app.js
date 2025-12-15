@@ -79,6 +79,7 @@ async function initFromDrive() {
     await loadGames();
   }
 }
+
 // 初始化遊戲
 function initGame(code, config = defaultConfig) {
   let arr = Array.from({ length: config.gridSize }, (_, i) => i + 1);
@@ -93,7 +94,6 @@ function initGame(code, config = defaultConfig) {
   };
   saveGames();
 }
-
 // === 玩家登入 ===
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
@@ -127,12 +127,27 @@ app.post('/api/game/:code/scratch', (req, res) => {
   const number = games[code].numbers[index];
   const scratchedCount = games[code].scratched.filter(n => n !== null).length;
 
-  // 檢查進度門檻：未達門檻時隱藏中獎號碼
+  // 檢查進度門檻：未達門檻時替換中獎號碼
   if (scratchedCount < games[code].config.progressThreshold &&
       games[code].config.winNumbers.includes(number)) {
-    games[code].scratched[index] = null;
-    saveGames();
-    return res.json({ number: null, message: '尚未達到進度，號碼隱藏' });
+    
+    // 找一個還沒刮開、不是中獎號碼的格子
+    const available = games[code].numbers.filter((n, i) => 
+      games[code].scratched[i] === null && !games[code].config.winNumbers.includes(n)
+    );
+
+    if (available.length > 0) {
+      // 隨機挑一個替代號碼
+      const fakeNumber = available[Math.floor(Math.random() * available.length)];
+      games[code].scratched[index] = fakeNumber;
+
+      // 把原本的中獎號碼移到替代號碼的位置
+      const fakeIndex = games[code].numbers.indexOf(fakeNumber);
+      games[code].numbers[fakeIndex] = number;
+
+      saveGames();
+      return res.json({ number: fakeNumber, message: '尚未達到進度，暫時替換號碼' });
+    }
   }
 
   // 正常顯示號碼
@@ -149,7 +164,6 @@ app.get('/api/game/:code', (req, res) => {
   }
   res.json(games[code]);
 });
-
 // === 管理員登入 ===
 app.post('/api/admin', (req, res) => {
   const { password } = req.body;
@@ -245,7 +259,7 @@ app.get('/api/admin/game-progress', (req, res) => {
   res.json(progress);
 });
 
-// === Admin 查詢單一遊戲進度 (修正前端呼叫 /api/admin/progress) ===
+// === Admin 查詢單一遊戲進度 ===
 app.get('/api/admin/progress', (req, res) => {
   const authHeader = req.headers.authorization;
   const { code } = req.query;
@@ -302,7 +316,7 @@ app.post('/api/admin/delete-game', (req, res) => {
   res.json({ message: `遊戲 ${code} 已刪除` });
 });
 
-// === Admin 修改遊戲設定 (修正為接收展開參數) ===
+// === Admin 修改遊戲設定 ===
 app.post('/api/admin/config', (req, res) => {
   const authHeader = req.headers.authorization;
   const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
