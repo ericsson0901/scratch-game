@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "線上刮刮樂遊戲",
   "main": "app.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "start": "node app.js"
   },
