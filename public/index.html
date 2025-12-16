@@ -119,6 +119,13 @@
       overflow: hidden;
       width: 100%;
     }
+
+    /* 透明佔位格子樣式 */
+    .cell.placeholder {
+      background: transparent !important;
+      border: none !important;
+      visibility: hidden;
+    }
   </style>
 </head>
 <body>
@@ -188,7 +195,6 @@
         alert(err.error || '密碼錯誤');
       }
     });
-
     // 載入遊戲代碼清單
     async function loadGameList() {
       const res = await fetch('/api/game-list');
@@ -247,6 +253,7 @@
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
     }
+
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -314,6 +321,11 @@
     }
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
+        // 建立透明佔位格子
+        const placeholder = document.createElement('div');
+        placeholder.className = 'cell placeholder';
+        cell.parentNode.insertBefore(placeholder, cell);
+
         // 先捲到中間，確保 iPhone Safari 能定位
         cell.scrollIntoView({
           behavior: 'smooth',
@@ -325,6 +337,13 @@
           cell.classList.add('enlarged');
           disablePageScroll();
         }, 300);
+
+        // 當縮小時移除佔位格子
+        cell.addEventListener('transitionend', () => {
+          if (!cell.classList.contains('enlarged') && placeholder.parentNode) {
+            placeholder.remove();
+          }
+        });
       }
       initScratchCanvas(cell, number);
       if (isWin) cell.dataset.win = "true";

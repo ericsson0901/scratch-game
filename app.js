@@ -311,8 +311,8 @@ app.get('/api/game/state', (req, res) => {
   });
 });
 
-// 玩家刮格子（含進度門檻替換中獎號碼）
-app.post('/api/game/scratch', (req, res) => {
+// 玩家刮格子（含進度門檻替換中獎號碼 + 中獎立即備份）
+app.post('/api/game/scratch', async (req, res) => {
   const { code, index } = req.body;
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
@@ -352,6 +352,16 @@ app.post('/api/game/scratch', (req, res) => {
 
   game.scratched[index] = number;
   saveGame(code);
+
+  // ✅ 如果刮出的號碼是中獎號碼 → 立刻執行備份
+  if (game.config.winNumbers.includes(number)) {
+    try {
+      await backupZipToDrive();
+      console.log(`遊戲 ${code} 中獎號碼刮出 → 已執行備份`);
+    } catch (err) {
+      console.error("中獎備份失敗:", err);
+    }
+  }
 
   res.json({ number });
 });
