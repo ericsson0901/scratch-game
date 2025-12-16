@@ -5,7 +5,7 @@
   <title>刮刮樂遊戲</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    /* 廣告遮罩樣式 */
+    /* 廣告遮罩 */
     #adOverlay {
       position: fixed;
       top: 0; left: 0;
@@ -122,8 +122,8 @@
 
   <!-- 登入區塊 -->
   <div id="login" style="display:none;">
-    <h2>請輸入電話號碼</h2>
-    <input type="password" id="password" placeholder="輸入電話號碼">
+    <h2>請輸入密碼</h2>
+    <input type="password" id="password" placeholder="輸入密碼">
     <button id="loginBtn">登入</button>
   </div>
 
@@ -143,28 +143,21 @@
 
   <script src="game.js"></script>
   <script>
-    // 玩家 ID 固定
-    let playerId = localStorage.getItem('playerId');
-    if (!playerId) {
-      playerId = Date.now();
-      localStorage.setItem('playerId', playerId);
-    }
-
-    // 全域禁止捲動
+    // 禁止捲動
     function disablePageScroll() {
       document.body.classList.add('noscroll');
-      window._preventScroll = (e) => { if (e.cancelable) e.preventDefault(); };
-      window.addEventListener('touchmove', window._preventScroll, { passive: false });
+      window._preventScroll = e => { if(e.cancelable) e.preventDefault(); };
+      window.addEventListener('touchmove', window._preventScroll, { passive:false });
     }
     function enablePageScroll() {
       document.body.classList.remove('noscroll');
-      if (window._preventScroll) {
+      if(window._preventScroll) {
         window.removeEventListener('touchmove', window._preventScroll);
         window._preventScroll = null;
       }
     }
 
-    // 點擊廣告後顯示登入
+    // 廣告 → 點擊顯示登入
     document.getElementById('closeAdBtn').addEventListener('click', () => {
       document.getElementById('adOverlay').style.display = 'none';
       document.getElementById('login').style.display = 'block';
@@ -173,68 +166,77 @@
     // 登入驗證
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const password = document.getElementById('password').value;
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      });
-      if (res.ok) {
-        document.getElementById('login').style.display = 'none';
-        document.getElementById('selectGame').style.display = 'block';
-        loadGameList();
-      } else {
-        const err = await res.json();
-        alert(err.error || '密碼錯誤');
+      try {
+        const res = await fetch('/api/login', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ password })
+        });
+        if(res.ok){
+          document.getElementById('login').style.display = 'none';
+          document.getElementById('selectGame').style.display = 'block';
+          loadGameList();
+        } else {
+          const err = await res.json();
+          alert(err.error || '密碼錯誤');
+        }
+      } catch(e){
+        alert('連線錯誤');
       }
     });
 
     // 載入遊戲清單
     async function loadGameList() {
-      const res = await fetch('/api/game-list');
-      if (res.ok) {
-        const data = await res.json();
-        const ul = document.getElementById('gameListUl');
-        ul.innerHTML = '';
-        data.codes.forEach(code => {
-          const li = document.createElement('li');
-          const btn = document.createElement('button');
-          btn.textContent = code;
-          btn.onclick = () => startSelectedGame(code);
-          li.appendChild(btn);
-          ul.appendChild(li);
-        });
-      } else {
-        alert('無法取得遊戲清單');
+      try {
+        const res = await fetch('/api/game-list');
+        if(res.ok){
+          const data = await res.json();
+          const ul = document.getElementById('gameListUl');
+          ul.innerHTML = '';
+          data.codes.forEach(code=>{
+            const li=document.createElement('li');
+            const btn=document.createElement('button');
+            btn.textContent=code;
+            btn.onclick=()=>startSelectedGame(code);
+            li.appendChild(btn);
+            ul.appendChild(li);
+          });
+        } else {
+          alert('無法取得遊戲清單');
+        }
+      } catch(e){
+        alert('無法連線取得遊戲清單');
       }
     }
 
     document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
 
     // 開始遊戲
-    async function startSelectedGame(gameCode) {
-      try {
-        const res = await fetch(`/api/game/state?code=${gameCode}&playerId=${playerId}`);
-        if (res.ok) {
+    async function startSelectedGame(gameCode){
+      try{
+        const res = await fetch(`/api/game/state?code=${gameCode}&playerId=${Date.now()}`);
+        if(res.ok){
           const data = await res.json();
-          document.getElementById('selectGame').style.display = 'none';
-          document.getElementById('game').style.display = 'block';
-          if (typeof startGame === 'function') {
+          document.getElementById('selectGame').style.display='none';
+          document.getElementById('game').style.display='block';
+          if(typeof startGame==='function'){
             startGame(gameCode, data);
           }
         } else {
           const err = await res.json();
-          if (err.error && err.error.includes('locked')) {
+          if(err.error && err.error.includes('locked')){
             alert('其他玩家正在進行遊戲，請稍後再試');
           } else {
             alert(err.error || '無法進入遊戲');
           }
         }
-      } catch (e) {
-        alert('連線錯誤，請稍後再試');
+      } catch(e){
+        alert('連線錯誤');
       }
     }
 
-    function showWinningNumbers(numbers) {
+    // 顯示中獎號碼
+    function showWinningNumbers(numbers){
       document.getElementById('winning').textContent = numbers.join(', ');
     }
   </script>
