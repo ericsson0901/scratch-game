@@ -1,192 +1,166 @@
-// app.js - 第一段
+// app.js - 完整整合版 (第一段)
+
+// 基本套件
 const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
+const { google } = require('googleapis');
 
 const app = express();
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-const PORT = process.env.PORT || 3000;
-
-// 模擬資料庫
-let gameList = [
-  { code: 'GAME001', locked: false, data: [] },
-  { code: 'GAME002', locked: false, data: [] },
-  { code: 'GAME003', locked: false, data: [] }
-];
-
-const passwords = {
-  player: '1234',
-  admin: 'admin123',
-  manager: 'manager123'
+// ---- 使用者 / 管理員設定 ----
+const USERS = {
+  player: '1234',     // 玩家密碼
+  admin: 'adminpass', // 管理員密碼
+  manager: 'managerpass' // Manager 密碼
 };
 
-// 簡單權限檢查
-function checkRole(password) {
-  if (password === passwords.admin) return 'admin';
-  if (password === passwords.manager) return 'manager';
-  if (password === passwords.player) return 'player';
-  return null;
+// ---- 遊戲資料存放 ----
+const GAMES_FILE = path.join(__dirname, 'games.json');
+let games = {};
+if (fs.existsSync(GAMES_FILE)) {
+  games = JSON.parse(fs.readFileSync(GAMES_FILE));
 }
 
-// 登入 API
+// ---- 遊戲鎖定管理 ----
+let locks = {};
+
+// ---- Google Drive 設定 ----
+const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
+const KEYFILE = 'service-account.json'; // 放你的 Google Service Account Key
+const auth = new google.auth.GoogleAuth({
+  keyFile: KEYFILE,
+  scopes: SCOPES
+});
+const drive = google.drive({ version: 'v3', auth });
+
+// ---- API: 登入 ----
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
-  const role = checkRole(password);
-  if (!role) {
-    return res.status(401).json({ error: '密碼錯誤' });
+  if (password === USERS.player || password === USERS.admin || password === USERS.manager) {
+    return res.json({ ok: true, role: password === USERS.admin ? 'admin' : (password === USERS.manager ? 'manager' : 'player') });
   }
-  res.json({ role });
+  return res.status(401).json({ error: '密碼錯誤' });
 });
 
-// 遊戲清單 API
+// ---- API: 遊戲代碼清單 ----
 app.get('/api/game-list', (req, res) => {
-  const codes = gameList.map(g => g.code);
+  const codes = Object.keys(games);
   res.json({ codes });
 });
 
-// 遊戲狀態 API
+// ---- API: 遊戲狀態 ----
 app.get('/api/game/state', (req, res) => {
   const { code, playerId } = req.query;
-  const game = gameList.find(g => g.code === code);
-  if (!game) return res.status(404).json({ error: '找不到遊戲代碼' });
-  if (game.locked) return res.status(423).json({ error: 'locked' });
+  if (!code || !games[code]) return res.status(404).json({ error: '遊戲不存在' });
 
-  // 鎖定遊戲
-  game.locked = true;
-  game.currentPlayer = playerId;
+  // 檢查鎖定
+  if (locks[code] && locks[code] !== playerId) {
+    return res.status(403).json({ error: 'locked' });
+  }
 
-  res.json({
-    code: game.code,
-    data: game.data || [],
-    locked: true
-  });
+  // 設定鎖定
+  locks[code] = playerId;
+  res.json(games[code]);
 });
 
-// 釋放鎖定 API
-app.post('/api/game/unlock', (req, res) => {
+// ---- API: 管理員建立或修改遊戲 ----
+app.post('/api/admin/game', async (req, res) => {
+  const { password, code, data } = req.body;
+  if (password !== USERS.admin && password !== USERS.manager) {
+    return res.status(401).json({ error: '密碼錯誤' });
+  }
+
+  games[code] = data;
+  fs.writeFileSync(GAMES_FILE, JSON.stringify(games, null, 2));
+
+  // 呼叫 Google Drive 備份
+  await backupToDrive(code);
+
+  res.json({ ok: true });
+});
+
+// ---- Google Drive 備份功能 ----
+async function backupToDrive(code) {
+  const filePath = path.join(__dirname, `${code}.json`);
+  fs.writeFileSync(filePath, JSON.stringify(games[code], null, 2));
+
+  try {
+    // 上傳檔案
+    const fileMetadata = { name: `${code}.json` };
+    const media = { mimeType: 'application/json', body: fs.createReadStream(filePath) };
+    await drive.files.create({ resource: fileMetadata, media, fields: 'id' });
+
+    // 刪除本地舊檔
+    fs.unlinkSync(filePath);
+  } catch (err) {
+    console.error('Google Drive 備份失敗:', err.message);
+  }
+}
+
+// ---- 伺服器啟動 ----
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// ---- API: 結束遊戲、解除鎖定 ----
+app.post('/api/game/release', (req, res) => {
   const { code, playerId } = req.body;
-  const game = gameList.find(g => g.code === code);
-  if (!game) return res.status(404).json({ error: '找不到遊戲代碼' });
+  if (!code || !locks[code]) return res.status(400).json({ error: '遊戲未鎖定' });
 
-  if (game.currentPlayer === playerId) {
-    game.locked = false;
-    game.currentPlayer = null;
-    return res.json({ success: true });
-  }
-  res.status(403).json({ error: '無權解除鎖定' });
+  // 只有持有鎖定的玩家可以釋放
+  if (locks[code] !== playerId) return res.status(403).json({ error: '無法釋放他人鎖定' });
+
+  delete locks[code];
+  res.json({ ok: true });
 });
 
-// Google 雲端備份(舊版保留)
-app.post('/api/backup', (req, res) => {
-  // 模擬備份到雲端
-  const backupData = JSON.stringify(gameList, null, 2);
-  fs.writeFileSync(path.join(__dirname, 'backup.json'), backupData);
-  res.json({ success: true, message: '已備份到本地 backup.json (模擬雲端)' });
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-// app.js - 第二段 (接續第一段)
-
-// Admin / Manager 新增遊戲代碼
-app.post('/api/game/add', (req, res) => {
-  const { code, password } = req.body;
-  const role = checkRole(password);
-  if (role !== 'admin' && role !== 'manager') {
-    return res.status(403).json({ error: '無權限' });
+// ---- API: 刪除舊備份檔案 ----
+app.post('/api/admin/cleanup-backups', async (req, res) => {
+  const { password } = req.body;
+  if (password !== USERS.admin && password !== USERS.manager) {
+    return res.status(401).json({ error: '密碼錯誤' });
   }
 
-  if (gameList.find(g => g.code === code)) {
-    return res.status(400).json({ error: '遊戲代碼已存在' });
-  }
-
-  gameList.push({ code, locked: false, data: [] });
-  res.json({ success: true, code });
-});
-
-// Admin / Manager 刪除遊戲代碼
-app.post('/api/game/delete', (req, res) => {
-  const { code, password } = req.body;
-  const role = checkRole(password);
-  if (role !== 'admin' && role !== 'manager') {
-    return res.status(403).json({ error: '無權限' });
-  }
-
-  const index = gameList.findIndex(g => g.code === code);
-  if (index === -1) return res.status(404).json({ error: '找不到遊戲代碼' });
-
-  gameList.splice(index, 1);
-  res.json({ success: true });
-});
-
-// 遊戲完成後更新資料並解鎖
-app.post('/api/game/update', (req, res) => {
-  const { code, playerId, data } = req.body;
-  const game = gameList.find(g => g.code === code);
-  if (!game) return res.status(404).json({ error: '找不到遊戲代碼' });
-
-  if (game.currentPlayer !== playerId) {
-    return res.status(403).json({ error: '無權限更新遊戲' });
-  }
-
-  game.data = data;
-  game.locked = false;
-  game.currentPlayer = null;
-  res.json({ success: true });
-});
-
-// 真正 Google 雲端備份 & 刪除舊檔（需要 googleapis 套件 & OAuth 設定）
-const { google } = require('googleapis');
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
-const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
-
-const oauth2Client = new google.auth.OAuth2(
-  CLIENT_ID,
-  CLIENT_SECRET,
-  REDIRECT_URI
-);
-oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
-const drive = google.drive({ version: 'v3', auth: oauth2Client });
-
-// 上傳備份到 Google Drive
-app.post('/api/backup/drive', async (req, res) => {
   try {
-    const fileMetadata = {
-      name: `backup_${Date.now()}.json`,
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID] // 可設定雲端資料夾
-    };
-    const media = {
-      mimeType: 'application/json',
-      body: JSON.stringify(gameList, null, 2)
-    };
-    const response = await drive.files.create({
-      requestBody: fileMetadata,
-      media,
-      fields: 'id, name'
+    const driveRes = await drive.files.list({
+      pageSize: 100,
+      fields: 'files(id, name)',
     });
-    res.json({ success: true, fileId: response.data.id });
+
+    const files = driveRes.data.files;
+    if (!files || files.length === 0) return res.json({ ok: true, message: '無檔案可刪除' });
+
+    for (let file of files) {
+      // 只刪除 .json 備份檔
+      if (file.name.endsWith('.json')) {
+        await drive.files.delete({ fileId: file.id });
+      }
+    }
+
+    res.json({ ok: true, message: '備份檔案已清理完成' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: '備份雲端失敗' });
+    console.error('清理 Google Drive 備份失敗:', err.message);
+    res.status(500).json({ error: '清理失敗' });
   }
 });
 
-// 刪除 Google Drive 舊備份檔
-app.post('/api/backup/drive/delete', async (req, res) => {
-  const { fileId } = req.body;
-  if (!fileId) return res.status(400).json({ error: '缺少 fileId' });
-
-  try {
-    await drive.files.delete({ fileId });
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: '刪除檔案失敗' });
+// ---- 其他工具 ----
+// 可根據需求加入定時自動清理備份、鎖定逾時釋放等
+function releaseExpiredLocks(timeoutMs = 600000) { // 預設 10 分鐘
+  const now = Date.now();
+  for (let code in locks) {
+    if (locks[code] && now - locks[code].timestamp > timeoutMs) {
+      delete locks[code];
+      console.log(`已釋放過期鎖定: ${code}`);
+    }
   }
+}
+setInterval(releaseExpiredLocks, 60000); // 每分鐘檢查一次
+
+// ---- 完整日誌輸出 ----
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
 });
