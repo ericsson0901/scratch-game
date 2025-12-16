@@ -222,8 +222,8 @@ async function restoreFromDrive() {
   }
 }
 
-// 每半小時執行一次備份
-cron.schedule('*/30 * * * *', backupZipToDrive);
+// 每一個小時執行一次備份
+cron.schedule('0 * * * *', backupZipToDrive);
 
 // 初始化遊戲
 function initGame(code, config = defaultConfig) {
@@ -239,6 +239,28 @@ function initGame(code, config = defaultConfig) {
   };
   saveGame(code);
 }
+
+// === Admin 與 Manager 登入 API ===
+// Admin 登入：比對 adminPassword
+app.post('/api/admin', (req, res) => {
+  const { password } = req.body;
+  if (password === adminPassword) {
+    return res.json({ token: "admin-token" });
+  }
+  res.status(401).json({ error: 'Invalid admin password' });
+});
+
+// Manager 登入：比對遊戲代碼的 managerPassword
+app.post('/api/manager/login', (req, res) => {
+  const { code, password } = req.body;
+  loadGame(code);
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  if (password === games[code].config.managerPassword) {
+    return res.json({ token: "manager-token-" + code, code });
+  }
+  res.status(401).json({ error: 'Invalid manager password' });
+});
 // === 心跳檢測機制 ===
 let gameLocks = {}; 
 // 結構: { gameCode: { playerId, lastHeartbeat: Date } }
