@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "archiver": "^7.0.1",
+    "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "googleapis": "^168.0.0",
