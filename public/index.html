@@ -211,12 +211,37 @@
 
     document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
 
+    // 啟動心跳
+    function startHeartbeat(gameCode, playerId) {
+      setInterval(() => {
+        fetch('/api/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: gameCode, playerId })
+        }).catch(err => console.error("心跳失敗", err));
+      }, 120000); // 每 2 分鐘送一次
+    }
+
+    // 玩家進入遊戲代碼
     function startSelectedGame(gameCode) {
-      document.getElementById('selectGame').style.display = 'none';
-      document.getElementById('game').style.display = 'block';
-      if (typeof startGame === 'function') {
-        startGame(gameCode);
-      }
+      fetch('/api/join-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: gameCode, playerId: "player1" })
+      }).then(res => {
+        if (res.ok) {
+          document.getElementById('selectGame').style.display = 'none';
+          document.getElementById('game').style.display = 'block';
+          if (typeof startGame === 'function') {
+            startGame(gameCode);
+          }
+          startHeartbeat(gameCode, "player1");
+        } else {
+          res.json().then(err => {
+            alert(err.error || "無法進入遊戲");
+          });
+        }
+      });
     }
 
     function showWinningNumbers(numbers) {
