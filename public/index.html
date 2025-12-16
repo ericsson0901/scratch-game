@@ -5,7 +5,7 @@
   <title>刮刮樂遊戲</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    /* 廣告遮罩 */
+    /* 廣告遮罩樣式 */
     #adOverlay {
       position: fixed;
       top: 0; left: 0;
@@ -53,6 +53,7 @@
       overflow: hidden;
       transition: transform 0.2s ease;
     }
+    /* 放大時像手機全螢幕一樣 */
     .cell.enlarged {
       position: fixed;
       top: 50%;
@@ -63,6 +64,7 @@
       background: #fff;
       z-index: 1000;
     }
+    /* 刮完保持白底 */
     .cell.revealed {
       background: #fff;
     }
@@ -70,6 +72,7 @@
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
+      /* 新增：阻止 iPhone Safari 將觸控解讀成捲動 */
       touch-action: none;
     }
     .hiddenNumber {
@@ -81,13 +84,16 @@
       pointer-events: none;
       transition: font-size 0.2s ease;
     }
+    /* 放大時字體按比例放大 */
     .cell.enlarged .hiddenNumber {
       font-size: 20vw;
     }
+    /* 中獎而且已經刮完縮小後才變金色 */
     .cell.win.revealed .hiddenNumber {
       color: gold;
       font-weight: bold;
     }
+    /* 遊戲代碼清單樣式 */
     #gameListUl {
       list-style: none;
       padding: 0;
@@ -107,6 +113,8 @@
     #gameListUl button:hover {
       background: #45a049;
     }
+
+    /* 修改：移除 position: fixed 避免 iPhone 定位錯亂 */
     body.noscroll {
       overflow: hidden;
       width: 100%;
@@ -122,8 +130,8 @@
 
   <!-- 登入區塊 -->
   <div id="login" style="display:none;">
-    <h2>請輸入密碼</h2>
-    <input type="password" id="password" placeholder="輸入密碼">
+    <h2>請輸入電話號碼</h2>
+    <input type="password" id="password" placeholder="輸入電話號碼">
     <button id="loginBtn">登入</button>
   </div>
 
@@ -140,104 +148,174 @@
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
     <div class="grid" id="grid"></div>
   </div>
-
   <script src="game.js"></script>
   <script>
-    // 禁止捲動
+    // 全域禁止捲動控制
     function disablePageScroll() {
       document.body.classList.add('noscroll');
-      window._preventScroll = e => { if(e.cancelable) e.preventDefault(); };
-      window.addEventListener('touchmove', window._preventScroll, { passive:false });
+      window._preventScroll = (e) => { if (e.cancelable) e.preventDefault(); };
+      window.addEventListener('touchmove', window._preventScroll, { passive: false });
     }
     function enablePageScroll() {
       document.body.classList.remove('noscroll');
-      if(window._preventScroll) {
+      if (window._preventScroll) {
         window.removeEventListener('touchmove', window._preventScroll);
         window._preventScroll = null;
       }
     }
 
-    // 廣告 → 點擊顯示登入
+    // 點擊廣告後顯示登入區塊
     document.getElementById('closeAdBtn').addEventListener('click', () => {
       document.getElementById('adOverlay').style.display = 'none';
       document.getElementById('login').style.display = 'block';
     });
 
-    // 登入驗證
+    // 登入驗證全域密碼
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const password = document.getElementById('password').value;
-      try {
-        const res = await fetch('/api/login', {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ password })
-        });
-        if(res.ok){
-          document.getElementById('login').style.display = 'none';
-          document.getElementById('selectGame').style.display = 'block';
-          loadGameList();
-        } else {
-          const err = await res.json();
-          alert(err.error || '密碼錯誤');
-        }
-      } catch(e){
-        alert('連線錯誤');
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (res.ok) {
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('selectGame').style.display = 'block';
+        loadGameList();
+      } else {
+        const err = await res.json();
+        alert(err.error || '密碼錯誤');
       }
     });
 
-    // 載入遊戲清單
+    // 載入遊戲代碼清單
     async function loadGameList() {
-      try {
-        const res = await fetch('/api/game-list');
-        if(res.ok){
-          const data = await res.json();
-          const ul = document.getElementById('gameListUl');
-          ul.innerHTML = '';
-          data.codes.forEach(code=>{
-            const li=document.createElement('li');
-            const btn=document.createElement('button');
-            btn.textContent=code;
-            btn.onclick=()=>startSelectedGame(code);
-            li.appendChild(btn);
-            ul.appendChild(li);
-          });
-        } else {
-          alert('無法取得遊戲清單');
-        }
-      } catch(e){
-        alert('無法連線取得遊戲清單');
+      const res = await fetch('/api/game-list');
+      if (res.ok) {
+        const data = await res.json();
+        const ul = document.getElementById('gameListUl');
+        ul.innerHTML = '';
+        data.codes.forEach(code => {
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.textContent = code;
+          btn.onclick = () => startSelectedGame(code);
+          li.appendChild(btn);
+          ul.appendChild(li);
+        });
+      } else {
+        alert('無法取得遊戲清單');
       }
     }
 
     document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
 
-    // 開始遊戲
-    async function startSelectedGame(gameCode){
-      try{
-        const res = await fetch(`/api/game/state?code=${gameCode}&playerId=${Date.now()}`);
-        if(res.ok){
-          const data = await res.json();
-          document.getElementById('selectGame').style.display='none';
-          document.getElementById('game').style.display='block';
-          if(typeof startGame==='function'){
-            startGame(gameCode, data);
-          }
-        } else {
-          const err = await res.json();
-          if(err.error && err.error.includes('locked')){
-            alert('其他玩家正在進行遊戲，請稍後再試');
-          } else {
-            alert(err.error || '無法進入遊戲');
-          }
-        }
-      } catch(e){
-        alert('連線錯誤');
+    function startSelectedGame(gameCode) {
+      document.getElementById('selectGame').style.display = 'none';
+      document.getElementById('game').style.display = 'block';
+      if (typeof startGame === 'function') {
+        startGame(gameCode);
       }
     }
 
-    // 顯示中獎號碼
-    function showWinningNumbers(numbers){
+    function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
+    }
+
+    // 刮刮樂效果初始化
+    function initScratchCanvas(cell, number) {
+      const canvas = document.createElement('canvas');
+      canvas.className = 'scratchCanvas';
+      canvas.width = cell.offsetWidth;
+      canvas.height = cell.offsetHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#C0C0C0';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const span = document.createElement('span');
+      span.className = 'hiddenNumber';
+      span.textContent = number;
+
+      cell.appendChild(span);
+      cell.appendChild(canvas);
+
+      function resetCellStyle() {
+        cell.style.position = '';
+        cell.style.top = '';
+        cell.style.left = '';
+        cell.style.width = '';
+        cell.style.height = '';
+        cell.style.transform = '';
+        cell.style.zIndex = '';
+        enablePageScroll(); // 離開放大態時恢復捲動
+      }
+
+      // 進入放大態時鎖住頁面捲動
+      if (cell.classList.contains('enlarged')) {
+        disablePageScroll();
+      }
+
+      function scratch(e) {
+        if (e.cancelable) e.preventDefault(); // 阻止 iOS 預設捲動
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        ctx.globalCompositeOperation = 'destination-out';
+
+        const radius = canvas.width * 0.05;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let transparent = 0;
+        for (let i = 3; i < pixels.length; i += 4) {
+          if (pixels[i] === 0) transparent++;
+        }
+        const ratio = transparent / (canvas.width * canvas.height);
+
+        if (ratio > 0.4 && !cell.dataset.revealed) {
+          cell.classList.remove('enlarged');
+          resetCellStyle();
+          cell.classList.add('revealed');
+          cell.dataset.revealed = "true";
+
+          if (cell.dataset.win === "true" && !cell.dataset.alerted) {
+            alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
+            cell.dataset.alerted = "true";
+            cell.classList.add('win');
+          }
+        }
+      }
+
+      canvas.addEventListener('touchstart', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+      canvas.addEventListener('touchmove', scratch, { passive: false });
+      canvas.addEventListener('mousemove', scratch);
+
+      // 一分鐘後自動縮小
+      setTimeout(() => {
+        if (!cell.dataset.revealed && cell.classList.contains('enlarged')) {
+          cell.classList.remove('enlarged');
+          resetCellStyle();
+          if (cell.dataset.win === "true") {
+            cell.classList.add('revealed');
+            cell.classList.add('win');
+          }
+        }
+      }, 60000);
+    }
+
+    function createScratchCell(cell, number, isWin, alreadyRevealed) {
+      if (!alreadyRevealed) {
+        cell.classList.add('enlarged');
+      }
+      initScratchCanvas(cell, number);
+      if (isWin) cell.dataset.win = "true";
+      if (alreadyRevealed) {
+        cell.classList.add('revealed');
+        cell.dataset.revealed = "true";
+        if (isWin) cell.classList.add('win');
+      }
     }
   </script>
 </body>
