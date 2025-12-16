@@ -271,12 +271,20 @@ app.post('/api/join-game', (req, res) => {
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
-  // 如果已經有人鎖定且心跳在 3 分鐘內 → 拒絕
-  if (gameLocks[code] && Date.now() - gameLocks[code].lastHeartbeat < 180000) {
-    return res.status(400).json({ error: '此遊戲代碼已被使用中' });
+  if (gameLocks[code]) {
+    const lock = gameLocks[code];
+    // ✅ 如果是同一個 playerId → 允許覆蓋鎖定
+    if (lock.playerId === playerId) {
+      gameLocks[code] = { playerId, lastHeartbeat: Date.now() };
+      return res.json({ success: true, message: '重新進入遊戲成功' });
+    }
+    // 如果是不同玩家且心跳在 3 分鐘內 → 拒絕
+    if (Date.now() - lock.lastHeartbeat < 180000) {
+      return res.status(400).json({ error: '此遊戲代碼已被使用中' });
+    }
   }
 
-  // 建立鎖定
+  // 建立新鎖定
   gameLocks[code] = { playerId, lastHeartbeat: Date.now() };
   res.json({ success: true });
 });
