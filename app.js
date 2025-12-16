@@ -282,6 +282,7 @@ app.post('/api/join-game', (req, res) => {
     if (Date.now() - lock.lastHeartbeat < 180000) {
       return res.status(400).json({ error: '此遊戲代碼已被使用中' });
     }
+    // ✅ 不同玩家但舊鎖定已過期 → 允許建立新鎖定
   }
 
   // 建立新鎖定（舊鎖定不存在或已過期）
