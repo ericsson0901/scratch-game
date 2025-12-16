@@ -1,20 +1,22 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-require('dotenv').config();
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import { google } from 'googleapis';
+import archiver from 'archiver';
+import cron from 'node-cron';
+import unzipper from 'unzipper';
 
-const { google } = require('googleapis');
-const archiver = require('archiver');
-const cron = require('node-cron');
-const unzipper = require('unzipper');
+dotenv.config();
 
+const __dirname = path.resolve();
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 
-// 預設設定
+// ===== 遊戲設定 =====
 let defaultConfig = {
   gridSize: 9,
   winNumbers: [7],
@@ -28,7 +30,7 @@ let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 // 遊戲狀態
 let games = {};
 
-// 檔案操作
+// ===== 檔案操作 =====
 function getGameFilePath(code) {
   return path.join(__dirname, "game-" + code + ".json");
 }
@@ -59,7 +61,7 @@ function loadAllGames() {
   console.log("已載入所有遊戲代碼:", Object.keys(games));
 }
 
-// 密碼持久化
+// ===== 密碼持久化 =====
 function savePasswords() {
   const file = path.join(__dirname, "game-__config.json");
   fs.writeFileSync(file, JSON.stringify({ globalPlayerPassword, adminPassword }, null, 2));
@@ -73,16 +75,14 @@ function loadPasswords() {
   }
 }
 
-// Google Drive 備份
-const CREDENTIALS_PATH = path.join(__dirname, 'credentials.json');
-const TOKEN_PATH = path.join(__dirname, 'token.json');
+// ===== Google Drive 備份 =====
 const TARGET_FOLDER_ID = '1ZbWY6V2RCllvccOsL6cftTz1kqZENE9Y';
 
 function getOAuthClient() {
-  const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
+  const credentials = JSON.parse(process.env.CREDENTIALS_JSON);
   const { client_secret, client_id, redirect_uris } = credentials.installed;
   const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
-  const token = JSON.parse(fs.readFileSync(TOKEN_PATH));
+  const token = JSON.parse(process.env.TOKEN_JSON);
   oAuth2Client.setCredentials(token);
   return oAuth2Client;
 }
@@ -130,7 +130,7 @@ async function restoreFromDrive() {
 // 定時備份
 cron.schedule('*/30 * * * *', backupZipToDrive);
 
-// 初始化遊戲
+// ===== 遊戲初始化 =====
 function initGame(code, config = defaultConfig) {
   let arr = Array.from({ length: config.gridSize }, (_, i) => i + 1);
   for (let i = arr.length - 1; i > 0; i--) {
@@ -209,7 +209,7 @@ app.post('/api/game/scratch', (req, res) => {
   res.json({ number: game.scratched[index], revealed: true });
 });
 
-// Manager 相關 API（reset / config）
+// ===== Manager API =====
 app.post('/api/manager/reset', (req, res) => {
   const auth = req.headers.authorization;
   const { code } = req.body;
@@ -242,7 +242,7 @@ app.post('/api/manager/config/win', (req, res) => {
   res.json({ message: "遊戲 " + code + " 中獎號碼已更新為 " + games[code].config.winNumbers.join(', ') });
 });
 
-// Admin 相關 API（create / reset / delete / config / password）
+// ===== Admin API =====
 app.post('/api/admin/create-game', (req, res) => {
   const auth = req.headers.authorization;
   if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
@@ -330,7 +330,7 @@ app.post('/api/admin/change-global-password', (req, res) => {
   res.json({ message: "全域玩家密碼已更新" });
 });
 
-// 啟動伺服器
+// ===== 啟動伺服器 =====
 app.listen(PORT, async () => {
   console.log("Server running on port " + PORT);
   await restoreFromDrive();
