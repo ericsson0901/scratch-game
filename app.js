@@ -278,13 +278,13 @@ app.post('/api/join-game', (req, res) => {
       gameLocks[code] = { playerId, lastHeartbeat: Date.now() };
       return res.json({ success: true, message: '重新進入遊戲成功' });
     }
-    // 如果是不同玩家且心跳在 3 分鐘內 → 拒絕
+    // ❌ 如果是不同玩家且心跳在 3 分鐘內 → 拒絕
     if (Date.now() - lock.lastHeartbeat < 180000) {
       return res.status(400).json({ error: '此遊戲代碼已被使用中' });
     }
   }
 
-  // 建立新鎖定
+  // 建立新鎖定（舊鎖定不存在或已過期）
   gameLocks[code] = { playerId, lastHeartbeat: Date.now() };
   res.json({ success: true });
 });
