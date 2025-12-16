@@ -85,15 +85,15 @@ function loadPasswords() {
     if (data.adminPassword) adminPassword = data.adminPassword;
   }
 }
-// === Google Drive 備份設定（改用 OAuth） ===
-const CREDENTIALS_PATH = path.join(__dirname, 'credentials.json');
-const TOKEN_PATH = path.join(__dirname, 'token.json');
+// === Google Drive 備份設定（改用 OAuth，Render 版） ===
 
+// 改寫：不再使用檔案路徑，改用環境變數
 function getOAuthClient() {
-  const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
+  const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
   const { client_secret, client_id, redirect_uris } = credentials.installed;
   const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
-  const token = JSON.parse(fs.readFileSync(TOKEN_PATH));
+
+  const token = JSON.parse(process.env.GOOGLE_TOKEN);
   oAuth2Client.setCredentials(token);
   return oAuth2Client;
 }
@@ -153,7 +153,6 @@ async function backupZipToDrive() {
     console.error("備份失敗:", err);
   }
 }
-
 // === 新增：從 Google Drive 還原最新備份 ===
 async function restoreFromDrive() {
   try {
@@ -203,6 +202,7 @@ async function restoreFromDrive() {
 
 // 每半小時執行一次備份
 cron.schedule('*/30 * * * *', backupZipToDrive);
+
 // 初始化遊戲
 function initGame(code, config = defaultConfig) {
   let arr = Array.from({ length: config.gridSize }, (_, i) => i + 1);
