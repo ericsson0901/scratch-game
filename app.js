@@ -34,9 +34,11 @@ let games = {};
 function getGameFilePath(code) {
   return path.join(__dirname, "game-" + code + ".json");
 }
+
 function saveGame(code) {
   fs.writeFileSync(getGameFilePath(code), JSON.stringify(games[code], null, 2));
 }
+
 function loadGame(code) {
   const file = getGameFilePath(code);
   if (fs.existsSync(file)) {
@@ -52,6 +54,7 @@ function loadGame(code) {
     }
   }
 }
+
 function loadAllGames() {
   const files = fs.readdirSync(__dirname).filter(f => f.startsWith('game-') && f.endsWith('.json'));
   for (const file of files) {
@@ -66,6 +69,7 @@ function savePasswords() {
   const file = path.join(__dirname, "game-__config.json");
   fs.writeFileSync(file, JSON.stringify({ globalPlayerPassword, adminPassword }, null, 2));
 }
+
 function loadPasswords() {
   const file = path.join(__dirname, "game-__config.json");
   if (fs.existsSync(file)) {
@@ -78,12 +82,15 @@ function loadPasswords() {
 // ===== Google Drive 備份 =====
 const TARGET_FOLDER_ID = '1ZbWY6V2RCllvccOsL6cftTz1kqZENE9Y';
 
+// 從環境變數中讀取 Google API 認證資訊
 function getOAuthClient() {
-  const credentials = JSON.parse(process.env.CREDENTIALS_JSON);
+  const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);  // 從環境變數讀取 Google credentials
   const { client_secret, client_id, redirect_uris } = credentials.installed;
   const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
-  const token = JSON.parse(process.env.TOKEN_JSON);
+
+  const token = JSON.parse(process.env.GOOGLE_TOKEN);  // 從環境變數讀取 Token
   oAuth2Client.setCredentials(token);
+
   return oAuth2Client;
 }
 
