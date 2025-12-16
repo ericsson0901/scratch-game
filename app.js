@@ -142,7 +142,6 @@ async function backupZipToDrive() {
       body: fs.createReadStream(zipPath),
     };
 
-    // 建立新檔案到指定資料夾（如果有設定）
     const requestBody = {
       name: 'games-backup.zip',
       mimeType: 'application/zip',
@@ -169,7 +168,6 @@ async function restoreFromDrive() {
     const auth = getOAuthClient();
     const drive = google.drive({ version: 'v3', auth });
 
-    // 找到最新的備份檔案
     const res = await drive.files.list({
       q: "name='games-backup.zip' and '" + TARGET_FOLDER_ID + "' in parents",
       orderBy: 'createdTime desc',
@@ -196,14 +194,12 @@ async function restoreFromDrive() {
 
     console.log("已下載最新備份 zip");
 
-    // 解壓縮 zip，還原 game-*.json 檔案（包含 __config.json）
     await fs.createReadStream(path.join(__dirname, 'games-backup.zip'))
       .pipe(unzipper.Extract({ path: __dirname }))
       .promise();
 
     console.log("已還原遊戲 JSON 檔案");
 
-    // 還原密碼設定
     loadPasswords();
   } catch (err) {
     console.error("還原失敗:", err);
@@ -279,6 +275,28 @@ app.get('/api/game/state', (req, res) => {
     scratched: game.scratched,
     revealed: game.scratched.map(n => n !== null)
   });
+});
+
+// 玩家刮格子 (新增的路由)
+app.post('/api/game/scratch', (req, res) => {
+  const { code, index } = req.body;
+  loadGame(code);
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  const game = games[code];
+  if (index < 0 || index >= game.config.gridSize) {
+    return res.status(400).json({ error: 'Invalid index' });
+  }
+
+  if (game.scratched[index] !== null) {
+    return res.json({ number: game.scratched[index] });
+  }
+
+  const number = game.numbers[index];
+  game.scratched[index] = number;
+  saveGame(code);
+
+  res.json({ number });
 });
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
@@ -426,7 +444,6 @@ app.get('/api/admin/progress', (req, res) => {
     thresholdReached
   });
 });
-
 // 修改管理員密碼（持久化）
 app.post('/api/admin/change-password', (req, res) => {
   const auth = req.headers.authorization;
