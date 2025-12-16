@@ -51,11 +51,17 @@
       border-radius: 5px;
       position: relative;
       overflow: hidden;
-      transition: transform 0.3s ease;
+      transition: all 0.3s ease;
     }
-    /* 改用 scale 放大，避免 iPhone Safari 定位錯亂 */
+    /* 放大到正中間，佔滿螢幕 */
     .cell.enlarged {
-      transform: scale(3);
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80vw;
+      height: 80vw;
+      background: #fff;
       z-index: 1000;
     }
     /* 刮完保持白底 */
@@ -79,7 +85,7 @@
     }
     /* 放大時字體按比例放大 */
     .cell.enlarged .hiddenNumber {
-      font-size: 60px;
+      font-size: 20vw;
     }
     /* 中獎而且已經刮完縮小後才變金色 */
     .cell.win.revealed .hiddenNumber {
@@ -140,6 +146,7 @@
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
     <div class="grid" id="grid"></div>
   </div>
+
   <script src="game.js"></script>
   <script>
     // 全域禁止捲動控制
@@ -259,6 +266,7 @@
             cell.dataset.alerted = "true";
             cell.classList.add('win');
           }
+          enablePageScroll();
         }
       }
 
@@ -274,6 +282,7 @@
             cell.classList.add('revealed');
             cell.classList.add('win');
           }
+          enablePageScroll();
         }
       }, 60000);
     }
