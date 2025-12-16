@@ -251,42 +251,41 @@
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-        let transparent = 0;
-        for (let i = 3; i < pixels.length; i += 4) {
-          if (pixels[i] === 0) transparent++;
-        }
-        const ratio = transparent / (canvas.width * canvas.height);
+        // 判斷號碼區域是否已經完全刮開
+        const hiddenRect = span.getBoundingClientRect();
+        const hiddenPixels = ctx.getImageData(
+          hiddenRect.left - rect.left,
+          hiddenRect.top - rect.top,
+          hiddenRect.width,
+          hiddenRect.height
+        ).data;
 
-        if (ratio > 0.4 && !cell.dataset.revealed) {
-          cell.classList.remove('enlarged');
-          cell.classList.add('revealed');
+        let transparent = 0;
+        for (let i = 3; i < hiddenPixels.length; i += 4) {
+          if (hiddenPixels[i] === 0) transparent++;
+        }
+        const ratio = transparent / (hiddenPixels.length / 4);
+
+        // 如果號碼區域透明比例超過 90%，視為完全刮出
+        if (ratio > 0.9 && !cell.dataset.revealed) {
           cell.dataset.revealed = "true";
 
-          if (cell.dataset.win === "true" && !cell.dataset.alerted) {
-            alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
-            cell.dataset.alerted = "true";
-            cell.classList.add('win');
-          }
-          enablePageScroll();
+          setTimeout(() => {
+            cell.classList.remove('enlarged');
+            cell.classList.add('revealed');
+            if (cell.dataset.win === "true" && !cell.dataset.alerted) {
+              alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
+              cell.dataset.alerted = "true";
+              cell.classList.add('win');
+            }
+            enablePageScroll();
+          }, 1500); // 延遲 1.5 秒縮小
         }
       }
 
       canvas.addEventListener('touchstart', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
       canvas.addEventListener('touchmove', scratch, { passive: false });
       canvas.addEventListener('mousemove', scratch);
-
-      // 一分鐘後自動縮小
-      setTimeout(() => {
-        if (!cell.dataset.revealed && cell.classList.contains('enlarged')) {
-          cell.classList.remove('enlarged');
-          if (cell.dataset.win === "true") {
-            cell.classList.add('revealed');
-            cell.classList.add('win');
-          }
-          enablePageScroll();
-        }
-      }, 60000);
     }
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
