@@ -3,19 +3,33 @@
   "version": "1.0.0",
   "description": "線上刮刮樂遊戲",
   "main": "app.js",
+  "type": "module",
   "scripts": {
     "start": "node app.js"
   },
   "dependencies": {
     "archiver": "^7.0.1",
+    "body-parser": "^2.2.1",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "googleapis": "^168.0.0",
     "node-cron": "^4.2.1",
-    "unzipper": "^0.12.3"
+    "unzipper": "^0.12.3",
+    "uuid": "^13.0.0"
   },
   "engines": {
     "node": ">=16"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ericsson0901/scratch-game.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ericsson0901/scratch-game/issues"
+  },
+  "homepage": "https://github.com/ericsson0901/scratch-game#readme"
 }
