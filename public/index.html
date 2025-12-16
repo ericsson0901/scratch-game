@@ -221,7 +221,6 @@
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
     }
-
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -308,6 +307,14 @@
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
         cell.classList.add('enlarged');
+        // 新增：鎖定畫面在放大的格子正中間
+        setTimeout(() => {
+          cell.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'center'
+          });
+        }, 50);
       }
       initScratchCanvas(cell, number);
       if (isWin) cell.dataset.win = "true";
