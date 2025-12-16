@@ -107,7 +107,6 @@ function getOAuthClient() {
   oAuth2Client.setCredentials(token);
   return oAuth2Client;
 }
-
 // 共用資料夾 ID（可選，如果要指定資料夾）
 const TARGET_FOLDER_ID = '1ZbWY6V2RCllvccOsL6cftTz1kqZENE9Y';
 // 打包所有遊戲 JSON 成 zip 並上傳到 Google Drive
@@ -240,6 +239,46 @@ function initGame(code, config = defaultConfig) {
   };
   saveGame(code);
 }
+// === 心跳檢測機制 ===
+let gameLocks = {}; 
+// 結構: { gameCode: { playerId, lastHeartbeat: Date } }
+
+// 玩家進入遊戲 → 鎖定代碼
+app.post('/api/join-game', (req, res) => {
+  const { code, playerId } = req.body;
+  loadGame(code);
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  // 如果已經有人鎖定且心跳在 3 分鐘內 → 拒絕
+  if (gameLocks[code] && Date.now() - gameLocks[code].lastHeartbeat < 180000) {
+    return res.status(400).json({ error: '此遊戲代碼已被使用中' });
+  }
+
+  // 建立鎖定
+  gameLocks[code] = { playerId, lastHeartbeat: Date.now() };
+  res.json({ success: true });
+});
+
+// 玩家心跳 → 更新 lastHeartbeat
+app.post('/api/heartbeat', (req, res) => {
+  const { code, playerId } = req.body;
+  if (gameLocks[code] && gameLocks[code].playerId === playerId) {
+    gameLocks[code].lastHeartbeat = Date.now();
+    return res.json({ success: true });
+  }
+  res.status(400).json({ error: '遊戲未鎖定或玩家不符' });
+});
+
+// 定時檢查 → 超過 3 分鐘沒心跳就解除鎖定
+setInterval(() => {
+  const now = Date.now();
+  for (const code in gameLocks) {
+    if (now - gameLocks[code].lastHeartbeat > 180000) {
+      console.log(`遊戲 ${code} 鎖定解除`);
+      delete gameLocks[code];
+    }
+  }
+}, 60000); // 每分鐘檢查一次
 // 玩家登入（只驗證全域密碼）
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
@@ -293,7 +332,7 @@ app.get('/api/game/state', (req, res) => {
   });
 });
 
-// 玩家刮格子 (新增的路由)
+// 玩家刮格子
 app.post('/api/game/scratch', (req, res) => {
   const { code, index } = req.body;
   loadGame(code);
@@ -426,6 +465,7 @@ app.post('/api/admin/config', (req, res) => {
   saveGame(code);
   res.json({ success: true, config: games[code].config });
 });
+
 // Admin 查詢所有遊戲代碼清單
 app.get('/api/admin/game-list', (req, res) => {
   const auth = req.headers.authorization;
