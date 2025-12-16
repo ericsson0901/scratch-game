@@ -7,11 +7,12 @@
     "start": "node app.js"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "googleapis": "^168.0.0",
-    "archiver": "^6.0.0",
-    "unzipper": "^0.10.11"
+    "node-cron": "^4.2.1",
+    "unzipper": "^0.12.3"
   },
   "engines": {
     "node": ">=16"

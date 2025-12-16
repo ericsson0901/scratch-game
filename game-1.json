@@ -1,0 +1,16 @@
+{
+  "numbers": [
+    1
+  ],
+  "scratched": [
+    1
+  ],
+  "config": {
+    "gridSize": 1,
+    "winNumbers": [
+      1
+    ],
+    "progressThreshold": 1,
+    "managerPassword": "1"
+  }
+}
