@@ -210,18 +210,32 @@
 
     document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
 
-    function startSelectedGame(gameCode) {
-      document.getElementById('selectGame').style.display = 'none';
-      document.getElementById('game').style.display = 'block';
-      if (typeof startGame === 'function') {
-        startGame(gameCode);
+    async function startSelectedGame(gameCode) {
+      try {
+        const res = await fetch(`/api/game/state?code=${gameCode}&playerId=${Date.now()}`);
+        if (res.ok) {
+          document.getElementById('selectGame').style.display = 'none';
+          document.getElementById('game').style.display = 'block';
+          const data = await res.json();
+          if (typeof startGame === 'function') {
+            startGame(gameCode, data);
+          }
+        } else {
+          const err = await res.json();
+          if (err.error && err.error.includes('locked')) {
+            alert('其他玩家正在進行遊戲，請稍後再試');
+          } else {
+            alert(err.error || '無法進入遊戲');
+          }
+        }
+      } catch (e) {
+        alert('連線錯誤，請稍後再試');
       }
     }
 
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
     }
-
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
