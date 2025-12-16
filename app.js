@@ -279,6 +279,7 @@ setInterval(() => {
     }
   }
 }, 60000); // 每分鐘檢查一次
+
 // 玩家登入（只驗證全域密碼）
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
@@ -286,28 +287,6 @@ app.post('/api/login', (req, res) => {
     return res.json({ success: true });
   }
   res.status(401).json({ error: 'Invalid player password' });
-});
-
-// 管理員登入
-app.post('/api/admin', (req, res) => {
-  const { password } = req.body;
-  if (password === adminPassword) {
-    return res.json({ token: 'admin-token' });
-  }
-  res.status(401).json({ error: 'Invalid admin password' });
-});
-
-// 場次管理員登入
-app.post('/api/manager/login', (req, res) => {
-  const { code, password } = req.body;
-  loadGame(code);
-  if (!games[code]) {
-    return res.status(404).json({ error: 'Game not found' });
-  }
-  if (password !== games[code].config.managerPassword) {
-    return res.status(401).json({ error: 'Invalid manager password' });
-  }
-  return res.json({ token: "manager-token-" + code, code });
 });
 
 // 玩家查詢遊戲代碼清單
@@ -332,7 +311,7 @@ app.get('/api/game/state', (req, res) => {
   });
 });
 
-// 玩家刮格子
+// 玩家刮格子（含進度門檻替換中獎號碼）
 app.post('/api/game/scratch', (req, res) => {
   const { code, index } = req.body;
   loadGame(code);
@@ -347,13 +326,35 @@ app.post('/api/game/scratch', (req, res) => {
     return res.json({ number: game.scratched[index] });
   }
 
-  const number = game.numbers[index];
+  let number = game.numbers[index];
+  const scratchedCount = game.scratched.filter(n => n !== null).length;
+
+  // 在進度門檻前，如果刮到中獎號碼 → 替換掉
+  if (scratchedCount < game.config.progressThreshold &&
+      game.config.winNumbers.includes(number)) {
+
+    // 找一個尚未刮開且不是中獎號碼的格子
+    const availableIndexes = game.numbers
+      .map((n, i) => ({ n, i }))
+      .filter(obj => game.scratched[obj.i] === null && !game.config.winNumbers.includes(obj.n) && obj.i !== index);
+
+    if (availableIndexes.length > 0) {
+      const swapTarget = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
+
+      // 把中獎號碼移到新的位置
+      game.numbers[swapTarget.i] = number;
+
+      // 原本位置顯示替代號碼
+      number = swapTarget.n;
+      game.numbers[index] = number;
+    }
+  }
+
   game.scratched[index] = number;
   saveGame(code);
 
   res.json({ number });
 });
-
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const auth = req.headers.authorization;
