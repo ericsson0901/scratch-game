@@ -139,7 +139,7 @@
   <div id="login" style="display:none;">
     <h2>請輸入電話號碼</h2>
     <input type="password" id="password" placeholder="輸入電話號碼">
-    <button id="loginBtn">登入</button>
+    <button id="loginBtn">送出</button>
   </div>
 
   <!-- 選擇遊戲代碼區塊 -->
@@ -158,6 +158,12 @@
 
   <script src="game.js"></script>
   <script>
+    // === 固定玩家 UID ===
+    if (!localStorage.getItem('playerId')) {
+      localStorage.setItem('playerId', crypto.randomUUID());
+    }
+    const playerId = localStorage.getItem('playerId');
+
     // 全域禁止捲動控制
     function disablePageScroll() {
       document.body.classList.add('noscroll');
@@ -195,6 +201,7 @@
         alert(err.error || '密碼錯誤');
       }
     });
+
     // 載入遊戲代碼清單
     async function loadGameList() {
       const res = await fetch('/api/game-list');
@@ -233,7 +240,7 @@
       fetch('/api/join-game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: gameCode, playerId: "player1" })
+        body: JSON.stringify({ code: gameCode, playerId })
       }).then(res => {
         if (res.ok) {
           document.getElementById('selectGame').style.display = 'none';
@@ -241,7 +248,7 @@
           if (typeof startGame === 'function') {
             startGame(gameCode);
           }
-          startHeartbeat(gameCode, "player1");
+          startHeartbeat(gameCode, playerId);
         } else {
           res.json().then(err => {
             alert(err.error || "無法進入遊戲");
@@ -253,7 +260,6 @@
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
     }
-
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -319,6 +325,7 @@
       canvas.addEventListener('touchmove', scratch, { passive: false });
       canvas.addEventListener('mousemove', scratch);
     }
+
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
         // 建立透明佔位格子

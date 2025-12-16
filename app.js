@@ -268,6 +268,9 @@ let gameLocks = {};
 // 玩家進入遊戲 → 鎖定代碼
 app.post('/api/join-game', (req, res) => {
   const { code, playerId } = req.body;
+  if (!playerId) {
+    return res.status(400).json({ error: 'Player ID required' });
+  }
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
@@ -278,14 +281,11 @@ app.post('/api/join-game', (req, res) => {
       gameLocks[code] = { playerId, lastHeartbeat: Date.now() };
       return res.json({ success: true, message: '重新進入遊戲成功' });
     }
-    // ❌ 如果是不同玩家且心跳在 3 分鐘內 → 拒絕
-    if (Date.now() - lock.lastHeartbeat < 180000) {
-      return res.status(400).json({ error: '此遊戲代碼已被使用中' });
-    }
-    // ✅ 不同玩家但舊鎖定已過期 → 允許建立新鎖定
+    // ❌ 如果是不同玩家 → 一律拒絕，直到心跳過期由定時器清理
+    return res.status(400).json({ error: '此遊戲代碼已被使用中' });
   }
 
-  // 建立新鎖定（舊鎖定不存在或已過期）
+  // 建立新鎖定（舊鎖定不存在）
   gameLocks[code] = { playerId, lastHeartbeat: Date.now() };
   res.json({ success: true });
 });
