@@ -1,128 +1,257 @@
-// game.js
+// app.js
+import express from 'express';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import crypto from 'crypto';
 
-let winningNumbers = []; // 中獎號碼陣列
-let totalCells = 0;      // 總格子數
-let gameCode = null;     // 當前遊戲代碼
+const app = express();
+app.use(bodyParser.json());
+app.use(cors());
 
-// 提供給 index.html 呼叫
-function startGame(code) {
-  gameCode = code;
-  document.getElementById('selectGame').style.display = 'none';
-  document.getElementById('game').style.display = 'block';
-  loadGame();
+// ===================
+// 模擬資料庫（暫存）
+// ===================
+let games = {}; // { code: { gridSize, winningNumbers, scratched: [], progressThreshold, managerPassword } }
+let adminPassword = 'admin123'; // 初始管理員密碼
+let globalPlayerPassword = 'player123'; // 全域玩家密碼
+
+let adminTokens = new Set();
+let managerTokens = {}; // { token: code }
+
+// ===================
+// Helper
+// ===================
+function generateToken() {
+  return crypto.randomBytes(16).toString('hex');
 }
 
-// 載入遊戲狀態
-async function loadGame() {
-  try {
-    const res = await fetch(`/api/game/state?code=${encodeURIComponent(gameCode)}`);
-    if (!res.ok) throw new Error('無法取得遊戲狀態');
-    const state = await res.json();
+// ===================
+// 管理員 API
+// ===================
 
-    // 後端回傳中獎號碼、格子數、刮過的格子
-    winningNumbers = state.winningNumbers || [];
-    totalCells = state.gridSize || 36;
-
-    document.getElementById('winning').innerText = winningNumbers.join(', ');
-
-    const grid = document.getElementById('grid');
-    grid.innerHTML = '';
-
-    // 設定 grid 列數，正方形為主
-    const root = Math.sqrt(totalCells);
-    if (Number.isInteger(root)) {
-      grid.style.gridTemplateColumns = `repeat(${root}, auto)`;
-    } else {
-      grid.style.gridTemplateColumns = `repeat(6, auto)`; // 預設 6 列
-    }
-
-    // 建立格子
-    for (let i = 0; i < totalCells; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-
-      if (state.scratched && state.scratched[i] !== null) {
-        // 已刮過 → 直接顯示
-        createScratchCell(cell, state.scratched[i], winningNumbers.includes(state.scratched[i]), true);
-      }
-
-      cell.onclick = () => scratch(i, cell);
-      grid.appendChild(cell);
-    }
-
-    updateStats(state.scratched ? state.scratched.filter(n => n !== null).length : 0);
-
-  } catch (e) {
-    alert('載入遊戲失敗，請確認遊戲代碼是否正確');
-    console.error(e);
+// 登入管理員
+app.post('/api/admin', (req, res) => {
+  const { password } = req.body;
+  if (password === adminPassword) {
+    const token = generateToken();
+    adminTokens.add(token);
+    return res.json({ token });
   }
-}
+  res.status(401).json({ error: '密碼錯誤' });
+});
+
+// 建立遊戲
+app.post('/api/admin/create-game', (req, res) => {
+  const auth = req.headers.authorization?.split(' ')[1];
+  if (!adminTokens.has(auth)) return res.status(403).json({ error: '未授權' });
+
+  const { code, managerPassword } = req.body;
+  if (!code || !managerPassword) return res.status(400).json({ error: '請提供遊戲代碼與管理員密碼' });
+  if (games[code]) return res.status(400).json({ error: '遊戲代碼已存在' });
+
+  games[code] = {
+    gridSize: 36,
+    winningNumbers: [],
+    scratched: Array(36).fill(null),
+    progressThreshold: 3,
+    managerPassword
+  };
+  res.json({ message: '遊戲建立成功', code });
+});
+
+// 重設遊戲
+app.post('/api/admin/reset', (req, res) => {
+  const auth = req.headers.authorization?.split(' ')[1];
+  if (!adminTokens.has(auth)) return res.status(403).json({ error: '未授權' });
+
+  const { code } = req.body;
+  const game = games[code];
+  if (!game) return res.status(404).json({ error: '找不到遊戲' });
+
+  game.scratched = Array(game.gridSize).fill(null);
+  res.json({ message: '遊戲已重製' });
+});
+
+// 刪除遊戲
+app.post('/api/admin/delete-game', (req, res) => {
+  const auth = req.headers.authorization?.split(' ')[1];
+  if (!adminTokens.has(auth)) return res.status(403).json({ error: '未授權' });
+
+  const { code } = req.body;
+  if (!games[code]) return res.status(404).json({ error: '找不到遊戲' });
+  delete games[code];
+  res.json({ message: '遊戲已刪除' });
+});
+
+// 修改遊戲設定
+app.post('/api/admin/config', (req, res) => {
+  const auth = req.headers.authorization?.split(' ')[1];
+  if (!adminTokens.has(auth)) return res.status(403).json({ error: '未授權' });
+
+  const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
+  const game = games[code];
+  if (!game) return res.status(404).json({ error: '找不到遊戲' });
+
+  if (gridSize) {
+    game.gridSize = gridSize;
+    game.scratched = Array(gridSize).fill(null);
+  }
+  if (winNumbers) game.winningNumbers = winNumbers;
+  if (progressThreshold) game.progressThreshold = progressThreshold;
+  if (managerPassword) game.managerPassword = managerPassword;
+
+  res.json({ success: true, config: game });
+});
+
+// 查看遊戲進度
+app.get('/api/admin/progress', (req, res) => {
+  const auth = req.headers.authorization?.split(' ')[1];
+  if (!adminTokens.has(auth)) return res.status(403).json({ error: '未授權' });
+
+  const code = req.query.code;
+  const game = games[code];
+  if (!game) return res.status(404).json({ error: '找不到遊戲' });
+
+  const scratchedCount = game.scratched.filter(n => n !== null).length;
+  const remainingCount = game.gridSize - scratchedCount;
+  const thresholdReached = scratchedCount >= game.progressThreshold;
+
+  res.json({ scratchedCount, remainingCount, progressThreshold: game.progressThreshold, thresholdReached });
+});
+
+// 遊戲清單
+app.get('/api/admin/game-list', (req, res) => {
+  const auth = req.headers.authorization?.split(' ')[1];
+  if (!adminTokens.has(auth)) return res.status(403).json({ error: '未授權' });
+
+  res.json({ codes: Object.keys(games) });
+});
+
+// 修改管理員密碼
+app.post('/api/admin/change-password', (req, res) => {
+  const auth = req.headers.authorization?.split(' ')[1];
+  if (!adminTokens.has(auth)) return res.status(403).json({ error: '未授權' });
+
+  const { newPassword } = req.body;
+  if (!newPassword) return res.status(400).json({ error: '請輸入新密碼' });
+  adminPassword = newPassword;
+  res.json({ message: '管理員密碼已更新' });
+});
+
+// 修改全域玩家密碼
+app.post('/api/admin/change-global-password', (req, res) => {
+  const auth = req.headers.authorization?.split(' ')[1];
+  if (!adminTokens.has(auth)) return res.status(403).json({ error: '未授權' });
+
+  const { newPassword } = req.body;
+  if (!newPassword) return res.status(400).json({ error: '請輸入新密碼' });
+  globalPlayerPassword = newPassword;
+  res.json({ message: '全域玩家密碼已更新' });
+});
+
+// ===================
+// 場次管理員 API
+// ===================
+
+// 登入場次管理員
+app.post('/api/manager/login', (req, res) => {
+  const { code, password } = req.body;
+  const game = games[code];
+  if (!game) return res.status(404).json({ error: '找不到遊戲' });
+  if (password !== game.managerPassword) return res.status(401).json({ error: '密碼錯誤' });
+
+  const token = generateToken();
+  managerTokens[token] = code;
+  res.json({ token, code });
+});
+
+// 修改格子數
+app.post('/api/manager/config/grid', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const code = managerTokens[token];
+  if (!code) return res.status(403).json({ error: '未授權' });
+
+  const game = games[code];
+  if (!game) return res.status(404).json({ error: '找不到遊戲' });
+
+  const { gridSize } = req.body;
+  if (!gridSize || gridSize < 1) return res.status(400).json({ error: '格子數無效' });
+
+  game.gridSize = gridSize;
+  game.scratched = Array(gridSize).fill(null);
+  res.json({ message: '格子數已更新', gridSize });
+});
+
+// 修改中獎號碼
+app.post('/api/manager/config/win', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const code = managerTokens[token];
+  if (!code) return res.status(403).json({ error: '未授權' });
+
+  const game = games[code];
+  if (!game) return res.status(404).json({ error: '找不到遊戲' });
+
+  const { winNumbers } = req.body;
+  if (!winNumbers || !Array.isArray(winNumbers)) return res.status(400).json({ error: '請提供中獎號碼陣列' });
+
+  game.winningNumbers = winNumbers;
+  res.json({ message: '中獎號碼已更新', winNumbers });
+});
+
+// 重製遊戲
+app.post('/api/manager/reset', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const code = managerTokens[token];
+  if (!code) return res.status(403).json({ error: '未授權' });
+
+  const game = games[code];
+  if (!game) return res.status(404).json({ error: '找不到遊戲' });
+
+  game.scratched = Array(game.gridSize).fill(null);
+  res.json({ message: '遊戲已重製' });
+});
+
+// ===================
+// 玩家端 API
+// ===================
+
+// 取得遊戲狀態
+app.get('/api/game/state', (req, res) => {
+  const code = req.query.code;
+  const game = games[code];
+  if (!game) return res.status(404).json({ error: '找不到遊戲' });
+
+  res.json({
+    winningNumbers: game.winningNumbers,
+    gridSize: game.gridSize,
+    scratched: game.scratched
+  });
+});
+
 // 刮格子
-async function scratch(i, cell) {
-  if (cell.querySelector('.hiddenNumber')) return; // 已經刮過就不再刮
+app.post('/api/game/scratch', (req, res) => {
+  const { index, code } = req.body;
+  const game = games[code];
+  if (!game) return res.status(404).json({ error: '找不到遊戲' });
 
-  // 放大格子
-  cell.classList.add('enlarged');
-  if (navigator.vibrate) navigator.vibrate(100);
+  if (index < 0 || index >= game.gridSize) return res.status(400).json({ error: '格子編號錯誤' });
+  if (game.scratched[index] !== null) return res.status(400).json({ error: '格子已刮過' });
 
-  try {
-    const res = await fetch('/api/game/scratch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ index: i, code: gameCode })
-    });
-
-    if (!res.ok) throw new Error('刮格子失敗');
-
-    const data = await res.json();
-
-    // 建立刮刮樂效果
-    createScratchCell(cell, data.number, winningNumbers.includes(data.number), false);
-
-    // 刮完後保持白底
-    cell.classList.add('revealed');
-
-    // 更新統計
-    const scratchedCount = document.querySelectorAll('.cell .hiddenNumber').length;
-    updateStats(scratchedCount);
-
-    // 標記中獎
-    if (winningNumbers.includes(data.number)) {
-      cell.dataset.win = "true";
-    }
-
-  } catch (e) {
-    alert('刮格子失敗，請稍後再試');
-    console.error(e);
-  }
-}
-
-// 更新刮格統計
-function updateStats(scratchedCount) {
-  document.getElementById('scratchedCount').innerText = scratchedCount;
-  document.getElementById('remainingCount').innerText = totalCells - scratchedCount;
-}
-
-// 建立格子內號碼顯示
-function createScratchCell(cell, number, isWinning, alreadyRevealed) {
-  const span = document.createElement('span');
-  span.className = 'hiddenNumber';
-  span.innerText = number;
-
-  if (alreadyRevealed) {
-    cell.classList.add('revealed');
-    if (isWinning) {
-      cell.classList.add('win');
-    }
+  // 模擬隨機號碼（如果中獎號碼存在則選擇其中一個）
+  let number = Math.floor(Math.random() * 100) + 1;
+  // 假如該格子對應 winningNumbers，則直接用該號碼
+  if (game.winningNumbers.length > 0 && Math.random() < 0.2) {
+    number = game.winningNumbers[Math.floor(Math.random() * game.winningNumbers.length)];
   }
 
-  cell.appendChild(span);
+  game.scratched[index] = number;
+  res.json({ number });
+});
 
-  // 點擊後縮小格子
-  cell.addEventListener('transitionend', () => {
-    if (cell.classList.contains('enlarged')) {
-      cell.classList.remove('enlarged');
-      if (isWinning) cell.classList.add('win');
-    }
-  }, { once: true });
-}
+// ===================
+// 啟動服務
+// ===================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
