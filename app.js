@@ -85,6 +85,14 @@ function loadPasswords() {
     if (data.adminPassword) adminPassword = data.adminPassword;
   }
 }
+
+// === 新增：遊戲鎖定機制欄位 ===
+function ensureLockFields(code) {
+  if (!games[code]) return;
+  if (!games[code].lockedBy) games[code].lockedBy = null;
+  if (!games[code].lockUntil) games[code].lockUntil = null;
+  if (!games[code].lastActive) games[code].lastActive = null;
+}
 // === 玩家登入驗證 ===
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
