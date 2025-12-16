@@ -240,6 +240,8 @@
 
       function resetCellStyle() {
         cell.style.position = '';
+      function resetCellStyle() {
+        cell.style.position = '';
         cell.style.top = '';
         cell.style.left = '';
         cell.style.width = '';
@@ -303,18 +305,18 @@
         }
       }, 60000);
     }
-
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
-        cell.classList.add('enlarged');
-        // 新增：鎖定畫面在放大的格子正中間
+        // 先捲到中間，再套用放大樣式，避免 iPhone Safari 定位錯亂
+        cell.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'center'
+        });
         setTimeout(() => {
-          cell.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center',
-            inline: 'center'
-          });
-        }, 50);
+          cell.classList.add('enlarged');
+          disablePageScroll();
+        }, 300);
       }
       initScratchCanvas(cell, number);
       if (isWin) cell.dataset.win = "true";
