@@ -142,26 +142,43 @@ async function backupZipToDrive() {
       body: fs.createReadStream(zipPath),
     };
 
-    const requestBody = {
-      name: 'games-backup.zip',
-      mimeType: 'application/zip',
-    };
-    if (TARGET_FOLDER_ID) {
-      requestBody.parents = [TARGET_FOLDER_ID];
-    }
-
-    const file = await drive.files.create({
-      requestBody,
-      media,
-      uploadType: 'media'
+    // 先檢查是否已有舊檔案
+    const listRes = await drive.files.list({
+      q: "name='games-backup.zip' and '" + TARGET_FOLDER_ID + "' in parents",
+      fields: 'files(id, name)',
+      pageSize: 1
     });
 
-    console.log("備份成功，檔案ID:", file.data.id);
+    if (listRes.data.files.length > 0) {
+      // 覆寫舊檔案
+      const fileId = listRes.data.files[0].id;
+      await drive.files.update({
+        fileId,
+        media,
+      });
+      console.log("備份成功，已覆寫舊檔案 ID:", fileId);
+    } else {
+      // 沒有舊檔案 → 建立新檔案
+      const requestBody = {
+        name: 'games-backup.zip',
+        mimeType: 'application/zip',
+      };
+      if (TARGET_FOLDER_ID) {
+        requestBody.parents = [TARGET_FOLDER_ID];
+      }
+
+      const file = await drive.files.create({
+        requestBody,
+        media,
+        uploadType: 'media'
+      });
+
+      console.log("備份成功，建立新檔案 ID:", file.data.id);
+    }
   } catch (err) {
     console.error("備份失敗:", err);
   }
 }
-
 // 從 Google Drive 還原最新備份
 async function restoreFromDrive() {
   try {
@@ -223,7 +240,6 @@ function initGame(code, config = defaultConfig) {
   };
   saveGame(code);
 }
-
 // 玩家登入（只驗證全域密碼）
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
@@ -298,6 +314,7 @@ app.post('/api/game/scratch', (req, res) => {
 
   res.json({ number });
 });
+
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const auth = req.headers.authorization;
@@ -409,7 +426,6 @@ app.post('/api/admin/config', (req, res) => {
   saveGame(code);
   res.json({ success: true, config: games[code].config });
 });
-
 // Admin 查詢所有遊戲代碼清單
 app.get('/api/admin/game-list', (req, res) => {
   const auth = req.headers.authorization;
@@ -444,6 +460,7 @@ app.get('/api/admin/progress', (req, res) => {
     thresholdReached
   });
 });
+
 // 修改管理員密碼（持久化）
 app.post('/api/admin/change-password', (req, res) => {
   const auth = req.headers.authorization;

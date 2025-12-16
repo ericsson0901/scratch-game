@@ -51,17 +51,11 @@
       border-radius: 5px;
       position: relative;
       overflow: hidden;
-      transition: transform 0.2s ease;
+      transition: transform 0.3s ease;
     }
-    /* 放大時像手機全螢幕一樣 */
+    /* 改用 scale 放大，避免 iPhone Safari 定位錯亂 */
     .cell.enlarged {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) scale(1);
-      width: 80vw;
-      height: 80vw;
-      background: #fff;
+      transform: scale(3);
       z-index: 1000;
     }
     /* 刮完保持白底 */
@@ -72,8 +66,7 @@
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      /* 新增：阻止 iPhone Safari 將觸控解讀成捲動 */
-      touch-action: none;
+      touch-action: none; /* 阻止 iPhone Safari 將觸控解讀成捲動 */
     }
     .hiddenNumber {
       position: absolute;
@@ -86,7 +79,7 @@
     }
     /* 放大時字體按比例放大 */
     .cell.enlarged .hiddenNumber {
-      font-size: 20vw;
+      font-size: 60px;
     }
     /* 中獎而且已經刮完縮小後才變金色 */
     .cell.win.revealed .hiddenNumber {
@@ -114,7 +107,6 @@
       background: #45a049;
     }
 
-    /* 修改：移除 position: fixed 避免 iPhone 定位錯亂 */
     body.noscroll {
       overflow: hidden;
       width: 100%;
@@ -238,24 +230,6 @@
       cell.appendChild(span);
       cell.appendChild(canvas);
 
-      function resetCellStyle() {
-        cell.style.position = '';
-      function resetCellStyle() {
-        cell.style.position = '';
-        cell.style.top = '';
-        cell.style.left = '';
-        cell.style.width = '';
-        cell.style.height = '';
-        cell.style.transform = '';
-        cell.style.zIndex = '';
-        enablePageScroll(); // 離開放大態時恢復捲動
-      }
-
-      // 進入放大態時鎖住頁面捲動
-      if (cell.classList.contains('enlarged')) {
-        disablePageScroll();
-      }
-
       function scratch(e) {
         if (e.cancelable) e.preventDefault(); // 阻止 iOS 預設捲動
         const rect = canvas.getBoundingClientRect();
@@ -277,7 +251,6 @@
 
         if (ratio > 0.4 && !cell.dataset.revealed) {
           cell.classList.remove('enlarged');
-          resetCellStyle();
           cell.classList.add('revealed');
           cell.dataset.revealed = "true";
 
@@ -297,7 +270,6 @@
       setTimeout(() => {
         if (!cell.dataset.revealed && cell.classList.contains('enlarged')) {
           cell.classList.remove('enlarged');
-          resetCellStyle();
           if (cell.dataset.win === "true") {
             cell.classList.add('revealed');
             cell.classList.add('win');
@@ -307,12 +279,13 @@
     }
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
-        // 先捲到中間，再套用放大樣式，避免 iPhone Safari 定位錯亂
+        // 先捲到中間，確保 iPhone Safari 能定位
         cell.scrollIntoView({
           behavior: 'smooth',
           block: 'center',
           inline: 'center'
         });
+        // 再套用放大樣式
         setTimeout(() => {
           cell.classList.add('enlarged');
           disablePageScroll();
