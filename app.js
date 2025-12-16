@@ -85,15 +85,45 @@ function loadPasswords() {
     if (data.adminPassword) adminPassword = data.adminPassword;
   }
 }
+// === 玩家登入驗證 ===
+app.post('/api/login', (req, res) => {
+  const { password } = req.body;
+  console.log("Login attempt password:", password);
+  console.log("Expected player password:", globalPlayerPassword);
 
-// === 新增：遊戲鎖定機制欄位 ===
-// 每個遊戲代碼會有 lockedBy、lockUntil、lastActive
-function ensureLockFields(code) {
-  if (!games[code]) return;
-  if (!games[code].lockedBy) games[code].lockedBy = null;
-  if (!games[code].lockUntil) games[code].lockUntil = null;
-  if (!games[code].lastActive) games[code].lastActive = null;
-}
+  if (password === globalPlayerPassword) {
+    return res.json({ success: true });
+  } else {
+    return res.status(403).json({ error: "密碼錯誤" });
+  }
+});
+
+// === 管理員登入驗證 ===
+app.post('/api/admin', (req, res) => {
+  const { password } = req.body;
+  console.log("Admin login attempt:", password);
+  console.log("Expected admin password:", adminPassword);
+
+  if (password === adminPassword) {
+    // 登入成功後給前端一個 token
+    return res.json({ success: true, token: "admin-token" });
+  } else {
+    return res.status(403).json({ error: "管理員密碼錯誤" });
+  }
+});
+
+// === 場次管理員登入驗證 ===
+app.post('/api/manager/login', (req, res) => {
+  const { code, password } = req.body;
+  loadGame(code);
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  if (games[code].config.managerPassword === password) {
+    return res.json({ success: true, token: "manager-token-" + code, code });
+  } else {
+    return res.status(403).json({ error: "場次管理員密碼錯誤" });
+  }
+});
 // === Google Drive 備份設定（改用 OAuth，Render 版） ===
 
 // 改寫：不再使用檔案路徑，改用環境變數
@@ -230,14 +260,14 @@ function initGame(code, config = defaultConfig) {
   };
   saveGame(code);
 }
-// 玩家查詢遊戲代碼清單 (新增)
+
+// 玩家查詢遊戲代碼清單
 app.get('/api/game-list', (req, res) => {
-  // 過濾掉特殊密碼欄位
   const codes = Object.keys(games).filter(code => !code.startsWith('__'));
   res.json({ codes });
 });
 
-// 玩家查詢遊戲狀態 (修改：增加 revealed 陣列 + 鎖定檢查)
+// 玩家查詢遊戲狀態
 app.get('/api/game/state', (req, res) => {
   const { code, playerId } = req.query;
   loadGame(code);
@@ -247,17 +277,14 @@ app.get('/api/game/state', (req, res) => {
   ensureLockFields(code);
   const now = Date.now();
 
-  // 檢查是否鎖定
   if (game.lockUntil && now < game.lockUntil && game.lockedBy !== playerId) {
     return res.status(403).json({ error: 'Game is locked by another player' });
   }
 
-  // 閒置檢查：超過 20 分鐘要求重新整理
   if (game.lastActive && now - game.lastActive > 20 * 60 * 1000) {
     return res.status(403).json({ error: 'Session expired, please refresh' });
   }
 
-  // 鎖定遊戲給當前玩家
   game.lockedBy = playerId;
   game.lockUntil = null;
   game.lastActive = now;
@@ -271,7 +298,7 @@ app.get('/api/game/state', (req, res) => {
   });
 });
 
-// 玩家刮格子（支援多個中獎號碼 + 延遲解鎖）
+// 玩家刮格子
 app.post('/api/game/scratch', (req, res) => {
   const { index, code, playerId } = req.body;
   loadGame(code);
@@ -281,12 +308,10 @@ app.post('/api/game/scratch', (req, res) => {
   ensureLockFields(code);
   const now = Date.now();
 
-  // 檢查是否被其他玩家鎖定
   if (game.lockedBy && game.lockedBy !== playerId && game.lockUntil && now < game.lockUntil) {
     return res.status(403).json({ error: 'Game is locked by another player' });
   }
 
-  // 更新最後操作時間
   game.lastActive = now;
 
   const { winNumbers, progressThreshold, gridSize } = game.config;
@@ -298,7 +323,6 @@ app.post('/api/game/scratch', (req, res) => {
     let chosen = game.numbers[index];
     const scratchedCount = game.scratched.filter(n => n !== null).length;
 
-    // 還沒達到門檻而且刮到中獎號碼 → 移位
     if (winNumbers.includes(chosen) && scratchedCount < progressThreshold) {
       const availableIndexes = game.scratched
         .map((val, idx) => (val === null && !winNumbers.includes(game.numbers[idx]) ? idx : null))
@@ -316,13 +340,11 @@ app.post('/api/game/scratch', (req, res) => {
     game.scratched[index] = chosen;
     saveGame(code);
 
-    // === 新增：如果刮到的是中獎號碼，立即執行備份 ===
     if (winNumbers.includes(game.scratched[index])) {
       backupZipToDrive();
     }
   }
 
-  // 刮完 → 設定 2 分鐘延遲解鎖
   game.lockUntil = now + 2 * 60 * 1000;
   game.lockedBy = null;
 
@@ -454,7 +476,7 @@ app.get('/api/admin/game-list', (req, res) => {
   res.json({ codes });
 });
 
-// === Admin 查看遊戲進度 (新增) ===
+// === Admin 查看遊戲進度 ===
 app.get('/api/admin/progress', (req, res) => {
   const auth = req.headers.authorization;
   if (!auth || auth !== 'Bearer admin-token') {
@@ -488,7 +510,7 @@ app.post('/api/admin/change-password', (req, res) => {
 
   adminPassword = newPassword;
   games.__adminPassword = adminPassword;
-  savePasswords(); // 新增：持久化保存密碼
+  savePasswords();
   res.json({ message: "管理員密碼已更新" });
 });
 
@@ -502,14 +524,13 @@ app.post('/api/admin/change-global-password', (req, res) => {
 
   globalPlayerPassword = newPassword;
   games.__globalPlayerPassword = globalPlayerPassword;
-  savePasswords(); // 新增：持久化保存密碼
+  savePasswords();
   res.json({ message: "全域玩家密碼已更新" });
 });
 
 // 啟動伺服器
 app.listen(PORT, async () => {
   console.log("Server running on port " + PORT);
-  // 新增：伺服器啟動時自動還原 Google Drive 最新備份並載入所有遊戲代碼與密碼
   await restoreFromDrive();
   loadAllGames();
   loadPasswords();
