@@ -14,8 +14,11 @@ async function loadGame() {
     const state = await fetch(`/api/game/state?code=${encodeURIComponent(gameCode)}`)
       .then(r => r.json());
 
+    // ✅ 後端回傳的是 winNumbers
     winningNumbers = state.winNumbers || [];
     totalCells = state.gridSize;
+
+    // ✅ 顯示中獎號碼時要 map 出 number
     document.getElementById('winning').innerText =
       winningNumbers.map(w => w.number).join(', ');
 
@@ -27,6 +30,7 @@ async function loadGame() {
       ? `repeat(${root}, auto)`
       : `repeat(6, auto)`;
 
+    // ✅ 不管有沒有刮過，都要建立格子
     for (let i = 0; i < state.gridSize; i++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
@@ -61,6 +65,7 @@ async function scratch(i, cell) {
     });
     const data = await res.json();
 
+    // ✅ 判斷中獎號碼改用 some
     const isWin = winningNumbers.some(w => w.number === data.number);
     createScratchCell(cell, data.number, isWin, false);
     cell.classList.add('revealed');
