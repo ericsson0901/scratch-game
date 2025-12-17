@@ -264,6 +264,7 @@
       });
     }
 
+    // 顯示中獎號碼（後續第四段會修改成支援物件陣列）
     function showWinningNumbers(numbers) {
       document.getElementById('winning').textContent = numbers.join(', ');
     }
@@ -364,7 +365,7 @@
         });
 
         initScratchCanvas(cell, number);
-        if (isWin) cell.dataset.win = "true";
+        if (isWin) cell.dataset.win = "true"; // ✅ 正確設定中獎標記
       }
 
       if (alreadyRevealed) {
@@ -372,6 +373,12 @@
         cell.dataset.revealed = "true";
         if (isWin) cell.classList.add('win');
       }
+    }
+
+    // ✅ 修正顯示中獎號碼，支援物件陣列
+    function showWinningNumbers(numbers) {
+      const display = numbers.map(n => typeof n === 'object' ? n.number : n);
+      document.getElementById('winning').textContent = display.join(', ');
     }
   </script>
 </body>
