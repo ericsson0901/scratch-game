@@ -141,7 +141,6 @@
     <input type="password" id="password" placeholder="輸入電話號碼">
     <button id="loginBtn">送出</button>
   </div>
-
   <!-- 選擇遊戲代碼區塊 -->
   <div id="selectGame" style="display:none;">
     <h2>選擇遊戲代碼</h2>
@@ -155,6 +154,7 @@
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
     <div class="grid" id="grid"></div>
   </div>
+
   <script src="game.js"></script>
   <script>
     // === 固定玩家 UID ===
@@ -200,7 +200,6 @@
         alert(err.error || '密碼錯誤');
       }
     });
-
     // 載入遊戲代碼清單
     async function loadGameList() {
       const res = await fetch('/api/game-list');
@@ -277,7 +276,7 @@
       cell.appendChild(canvas);
 
       function scratch(e) {
-        if (e.cancelable) e.preventDefault(); // 阻止 iOS 預設捲動
+        if (e.cancelable) e.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
@@ -288,7 +287,6 @@
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // 判斷號碼區域是否已經完全刮開
         const hiddenRect = span.getBoundingClientRect();
         const hiddenPixels = ctx.getImageData(
           hiddenRect.left - rect.left,
@@ -303,10 +301,8 @@
         }
         const ratio = transparent / (hiddenPixels.length / 4);
 
-        // 如果號碼區域透明比例超過 90%，視為完全刮出
         if (ratio > 0.9 && !cell.dataset.revealed) {
           cell.dataset.revealed = "true";
-
           setTimeout(() => {
             cell.classList.remove('enlarged');
             cell.classList.add('revealed');
@@ -317,7 +313,7 @@
             }
             enablePageScroll();
             enlargedCell = null; // ✅ 解鎖，允許再次點擊其他格子
-          }, 1500); // 延遲 1.5 秒縮小
+          }, 1500);
         }
       }
 
@@ -326,40 +322,40 @@
       canvas.addEventListener('mousemove', scratch);
     }
 
-    // === 新增全域鎖定變數 ===
+    // === 全域鎖定變數 ===
     let enlargedCell = null;
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
+      // ✅ 如果已有格子放大，忽略其他格子點擊
+      if (enlargedCell && !alreadyRevealed) {
+        return;
+      }
+
       if (!alreadyRevealed) {
-        // ✅ 如果已有格子放大 → 不允許再放大其他格子
-        if (enlargedCell) return;
+        enlargedCell = cell;
 
-        enlargedCell = cell; // 記錄目前放大的格子
-
-        // 建立透明佔位格子
         const placeholder = document.createElement('div');
         placeholder.className = 'cell placeholder';
         cell.parentNode.insertBefore(placeholder, cell);
 
-        // 先捲到中間，確保 iPhone Safari 能定位
         cell.scrollIntoView({
           behavior: 'smooth',
           block: 'center',
           inline: 'center'
         });
-        // 再套用放大樣式
+
         setTimeout(() => {
           cell.classList.add('enlarged');
           disablePageScroll();
         }, 300);
 
-        // 當縮小時移除佔位格子
         cell.addEventListener('transitionend', () => {
           if (!cell.classList.contains('enlarged') && placeholder.parentNode) {
             placeholder.remove();
           }
         });
       }
+
       initScratchCanvas(cell, number);
       if (isWin) cell.dataset.win = "true";
       if (alreadyRevealed) {
