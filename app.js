@@ -71,7 +71,6 @@ function loadAllGames() {
   }
   console.log("已載入所有遊戲代碼:", Object.keys(games));
 }
-
 // === 密碼持久化檔案 ===
 function savePasswords() {
   const file = path.join(__dirname, "game-__config.json");
@@ -115,6 +114,7 @@ function getOAuthClient() {
 
 // 共用資料夾 ID（可選，如果要指定資料夾）
 const TARGET_FOLDER_ID = '1ZbWY6V2RCllvccOsL6cftTz1kqZENE9Y';
+
 // 打包所有遊戲 JSON 成 zip 並上傳到 Google Drive
 async function backupZipToDrive() {
   try {
@@ -230,7 +230,6 @@ function initGame(code, config = defaultConfig) {
   };
   saveGame(code);
 }
-
 // === Admin 與 Manager 登入 API ===
 // Admin 登入：比對 adminPassword
 app.post('/api/admin', (req, res) => {
@@ -253,6 +252,7 @@ app.post('/api/manager/login', (req, res) => {
   }
   res.status(401).json({ error: 'Invalid manager password' });
 });
+
 // === 心跳檢測機制 ===
 let gameLocks = {}; 
 // 結構: { gameCode: { playerId, lastHeartbeat: Date } }
@@ -344,7 +344,6 @@ app.get('/api/game-list', (req, res) => {
   const codes = Object.keys(games).filter(code => !code.startsWith('__'));
   res.json({ codes });
 });
-
 // 玩家查詢遊戲狀態
 app.get('/api/game/state', (req, res) => {
   const { code } = req.query;
@@ -356,7 +355,8 @@ app.get('/api/game/state', (req, res) => {
     gridSize: game.config.gridSize,
     winNumbers: game.config.winNumbers,
     scratched: game.scratched,
-    revealed: game.scratched.map(n => n !== null)
+    revealed: game.scratched.map(n => n !== null),
+    numbers: game.numbers   // ✅ 新增 numbers，讓前端能顯示格子
   });
 });
 
@@ -412,6 +412,7 @@ app.post('/api/game/scratch', async (req, res) => {
 
   res.json({ number });
 });
+
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const auth = req.headers.authorization;
@@ -566,7 +567,7 @@ app.get('/api/admin/progress', (req, res) => {
   const scratchedCount = game.scratched.filter(n => n !== null).length;
   const remainingCount = game.scratched.filter(n => n === null).length;
 
-  // ✅ 判斷是否達到所有中獎號碼的門檻
+   // ✅ 判斷是否達到所有中獎號碼的門檻
   const thresholdReached = game.config.winNumbers.every(w => scratchedCount >= w.threshold);
 
   res.json({
