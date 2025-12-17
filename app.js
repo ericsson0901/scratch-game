@@ -94,8 +94,79 @@ async function restoreFromDrive() {
     console.error("還原失敗:", err);
   }
 }
+
+// === 基礎函式 ===
+function loadAllGames() {
+  try {
+    const files = fs.readdirSync(__dirname)
+      .filter(f => f.endsWith('.json') && !f.startsWith('__'));
+    files.forEach(f => {
+      const code = path.basename(f, '.json');
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(__dirname, f), 'utf-8'));
+        games[code] = data;
+      } catch (err) {
+        console.error("讀取遊戲檔案失敗:", f, err);
+      }
+    });
+    console.log("已載入所有遊戲:", Object.keys(games));
+  } catch (err) {
+    console.error("掃描遊戲檔案失敗:", err);
+  }
+}
+
+function loadGame(code) {
+  if (!code) return;
+  if (games[code]) return;
+  const filePath = path.join(__dirname, `${code}.json`);
+  if (fs.existsSync(filePath)) {
+    try {
+      games[code] = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch (err) {
+      console.error(`讀取 ${code}.json 失敗:`, err);
+    }
+  }
+}
+
+function saveGame(code) {
+  if (!code || !games[code]) return;
+  try {
+    fs.writeFileSync(
+      path.join(__dirname, `${code}.json`),
+      JSON.stringify(games[code], null, 2),
+      'utf-8'
+    );
+  } catch (err) {
+    console.error(`寫入 ${code}.json 失敗:`, err);
+  }
+}
+
+function loadPasswords() {
+  const file = path.join(__dirname, '__passwords.json');
+  if (!fs.existsSync(file)) return;
+  try {
+    const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    if (data.adminPassword) adminPassword = data.adminPassword;
+    if (data.globalPlayerPassword) globalPlayerPassword = data.globalPlayerPassword;
+  } catch (err) {
+    console.error("讀取密碼檔失敗:", err);
+  }
+}
+
+function savePasswords() {
+  const file = path.join(__dirname, '__passwords.json');
+  const data = {
+    adminPassword,
+    globalPlayerPassword
+  };
+  try {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error("寫入密碼檔失敗:", err);
+  }
+}
+
 // === Admin 與 Manager 登入 API ===
-// Admin 登入：比對 adminPassword
 app.post('/api/admin', (req, res) => {
   const { password } = req.body;
   if (password === adminPassword) {
@@ -104,7 +175,6 @@ app.post('/api/admin', (req, res) => {
   res.status(401).json({ error: 'Invalid admin password' });
 });
 
-// Manager 登入：比對遊戲代碼的 managerPassword
 app.post('/api/manager/login', (req, res) => {
   const { code, password } = req.body;
   loadGame(code);
@@ -117,11 +187,9 @@ app.post('/api/manager/login', (req, res) => {
 });
 
 // === 心跳檢測機制 ===
-let gameLocks = {}; 
-// 結構: { gameCode: { playerId, lastHeartbeat: Date } }
-
-// 延遲備份計時器
+let gameLocks = {};
 let backupTimer = null;
+
 function scheduleBackupAfterLeave() {
   if (backupTimer) {
     clearTimeout(backupTimer);
@@ -136,11 +204,10 @@ function scheduleBackupAfterLeave() {
         console.error("延遲備份失敗:", err);
       }
       backupTimer = null;
-    }, 3600000); // 一小時
+    }, 3600000);
   }
 }
 
-// 玩家進入遊戲 → 鎖定代碼
 app.post('/api/join-game', (req, res) => {
   const { code, playerId } = req.body;
   if (!playerId) {
@@ -169,7 +236,6 @@ app.post('/api/join-game', (req, res) => {
   res.json({ success: true });
 });
 
-// 玩家心跳 → 更新 lastHeartbeat
 app.post('/api/heartbeat', (req, res) => {
   const { code, playerId } = req.body;
   if (gameLocks[code] && gameLocks[code].playerId === playerId) {
@@ -179,7 +245,6 @@ app.post('/api/heartbeat', (req, res) => {
   res.status(400).json({ error: '遊戲未鎖定或玩家不符' });
 });
 
-// 定時檢查 → 超過 45 秒沒心跳就解除鎖定
 setInterval(() => {
   const now = Date.now();
   let removed = false;
@@ -223,6 +288,7 @@ app.get('/api/game/state', (req, res) => {
     // 不回傳 thresholds，避免玩家看到
   });
 });
+
 // === 玩家刮格子 API ===
 app.post('/api/game/scratch', (req, res) => {
   const { code, index } = req.body;
@@ -292,6 +358,7 @@ app.post('/api/admin/create-game', (req, res) => {
 
   res.json({ success: true, message: 'Game created', code });
 });
+
 // === Admin 重設遊戲 ===
 app.post('/api/admin/reset', (req, res) => {
   const { code } = req.body;
