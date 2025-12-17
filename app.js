@@ -4,7 +4,6 @@ const fs = require('fs');
 const dotenv = require('dotenv');
 const { google } = require('googleapis');
 const archiver = require('archiver');
-// const cron = require('node-cron'); // ❌ 移除原本的 cron 定時備份
 const unzipper = require('unzipper');
 
 dotenv.config();
@@ -15,12 +14,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 
-// 預設設定（移除 playerPassword）
-// ✅ 改成支援每個中獎號碼有獨立門檻
+// 預設設定（支援每個中獎號碼獨立門檻）
 let defaultConfig = {
   gridSize: 9,
   winNumbers: [
-    { number: 7, threshold: 3 } // 7 號在進度 >= 3 才能出現
+    { number: 7, threshold: 3 }
   ]
 };
 
@@ -32,6 +30,7 @@ let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
 // 多場遊戲狀態
 let games = {};
+
 // === 每個代碼獨立存檔 ===
 function getGameFilePath(code) {
   return path.join(__dirname, "game-" + code + ".json");
@@ -113,6 +112,7 @@ function getOAuthClient() {
   oAuth2Client.setCredentials(token);
   return oAuth2Client;
 }
+
 // 共用資料夾 ID（可選，如果要指定資料夾）
 const TARGET_FOLDER_ID = '1ZbWY6V2RCllvccOsL6cftTz1kqZENE9Y';
 // 打包所有遊戲 JSON 成 zip 並上傳到 Google Drive
@@ -130,24 +130,20 @@ async function backupZipToDrive() {
       archive.file(path.join(__dirname, file), { name: file });
     }
 
-    // 等待壓縮完成
     await new Promise((resolve, reject) => {
       output.on('finish', resolve);
       output.on('error', reject);
       archive.finalize();
     });
 
-    // 建立 OAuth client
     const auth = getOAuthClient();
     const drive = google.drive({ version: 'v3', auth });
 
-    // 壓縮完成後再建立讀取串流
     const media = {
       mimeType: 'application/zip',
       body: fs.createReadStream(zipPath),
     };
 
-    // 先檢查是否已有舊檔案
     const listRes = await drive.files.list({
       q: "name='games-backup.zip' and '" + TARGET_FOLDER_ID + "' in parents",
       fields: 'files(id, name)',
@@ -155,22 +151,15 @@ async function backupZipToDrive() {
     });
 
     if (listRes.data.files.length > 0) {
-      // 覆寫舊檔案
       const fileId = listRes.data.files[0].id;
-      await drive.files.update({
-        fileId,
-        media,
-      });
+      await drive.files.update({ fileId, media });
       console.log("備份成功，已覆寫舊檔案 ID:", fileId);
     } else {
-      // 沒有舊檔案 → 建立新檔案
       const requestBody = {
         name: 'games-backup.zip',
         mimeType: 'application/zip',
       };
-      if (TARGET_FOLDER_ID) {
-        requestBody.parents = [TARGET_FOLDER_ID];
-      }
+      if (TARGET_FOLDER_ID) requestBody.parents = [TARGET_FOLDER_ID];
 
       const file = await drive.files.create({
         requestBody,
@@ -184,6 +173,7 @@ async function backupZipToDrive() {
     console.error("備份失敗:", err);
   }
 }
+
 // 從 Google Drive 還原最新備份
 async function restoreFromDrive() {
   try {
@@ -206,13 +196,11 @@ async function restoreFromDrive() {
     const dest = fs.createWriteStream(path.join(__dirname, 'games-backup.zip'));
 
     await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' })
-      .then(resp => {
-        return new Promise((resolve, reject) => {
-          resp.data.pipe(dest);
-          dest.on('finish', resolve);
-          dest.on('error', reject);
-        });
-      });
+      .then(resp => new Promise((resolve, reject) => {
+        resp.data.pipe(dest);
+        dest.on('finish', resolve);
+        dest.on('error', reject);
+      }));
 
     console.log("已下載最新備份 zip");
 
@@ -247,6 +235,7 @@ function initGame(code, config = defaultConfig) {
 // Admin 登入：比對 adminPassword
 app.post('/api/admin', (req, res) => {
   const { password } = req.body;
+  console.log("收到 admin 登入請求:", password, "目前設定:", adminPassword);
   if (password === adminPassword) {
     return res.json({ token: "admin-token" });
   }
@@ -365,7 +354,7 @@ app.get('/api/game/state', (req, res) => {
   const game = games[code];
   res.json({
     gridSize: game.config.gridSize,
-    winningNumbers: game.config.winNumbers,
+    winNumbers: game.config.winNumbers,
     scratched: game.scratched,
     revealed: game.scratched.map(n => n !== null)
   });
@@ -462,13 +451,12 @@ app.post('/api/manager/config/win', (req, res) => {
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
-  // Manager 傳進來的 winNumbers 可能只是 [7, 8]
   if (Array.isArray(winNumbers)) {
-    games[code].config.winNumbers = winNumbers.map(n => {
-      if (typeof n === 'number') {
-        return { number: n, threshold: 0 }; // Manager 不需要設定門檻，預設 0
+    games[code].config.winNumbers = winNumbers.map(w => {
+      if (typeof w === 'number') {
+        return { number: w, threshold: 0 };
       }
-      return n;
+      return w;
     });
   }
 
@@ -537,11 +525,10 @@ app.post('/api/admin/config', (req, res) => {
 
   games[code].config.gridSize = gridSize || games[code].config.gridSize;
 
-  // ✅ Admin 可以設定每個中獎號碼的獨立門檻
   if (Array.isArray(winNumbers)) {
     games[code].config.winNumbers = winNumbers.map(w => {
       if (typeof w === 'number') {
-        return { number: w, threshold: 0 }; // 預設 0
+        return { number: w, threshold: 0 };
       }
       return w;
     });
