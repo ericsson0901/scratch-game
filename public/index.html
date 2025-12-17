@@ -64,7 +64,7 @@
       width: 80vw;
       height: 80vw;
       background: #fff;
-      z-index: 1000;
+      z-index: 1001; /* 高於遮罩 */
     }
     /* 刮完保持白底 */
     .cell.revealed {
@@ -125,6 +125,15 @@
       background: transparent !important;
       border: none !important;
       visibility: hidden;
+    }
+
+    /* 全螢幕遮罩，阻止其他點擊 */
+    #lockOverlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: transparent;
+      z-index: 1000; /* 在格子下方 */
     }
   </style>
 </head>
@@ -312,7 +321,10 @@
               cell.classList.add('win');
             }
             enablePageScroll();
-            enlargedCell = null; // ✅ 解鎖，允許再次點擊其他格子
+            enlargedCell = null;
+            // ✅ 移除遮罩
+            const overlayEl = document.getElementById('lockOverlay');
+            if (overlayEl) overlayEl.remove();
           }, 1500);
         }
       }
@@ -326,23 +338,19 @@
     let enlargedCell = null;
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
-      // ✅ 如果已有格子放大，忽略其他格子點擊
-      if (enlargedCell && !alreadyRevealed) {
-        return;
-      }
-
       if (!alreadyRevealed) {
         enlargedCell = cell;
+
+        // 建立全螢幕遮罩，阻止其他點擊
+        const overlay = document.createElement('div');
+        overlay.id = 'lockOverlay';
+        document.body.appendChild(overlay);
 
         const placeholder = document.createElement('div');
         placeholder.className = 'cell placeholder';
         cell.parentNode.insertBefore(placeholder, cell);
 
-        cell.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: 'center'
-        });
+        cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
 
         setTimeout(() => {
           cell.classList.add('enlarged');
@@ -354,10 +362,11 @@
             placeholder.remove();
           }
         });
+
+        initScratchCanvas(cell, number);
+        if (isWin) cell.dataset.win = "true";
       }
 
-      initScratchCanvas(cell, number);
-      if (isWin) cell.dataset.win = "true";
       if (alreadyRevealed) {
         cell.classList.add('revealed');
         cell.dataset.revealed = "true";
