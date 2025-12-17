@@ -64,7 +64,7 @@
       width: 80vw;
       height: 80vw;
       background: #fff;
-      z-index: 1001; /* 高於遮罩 */
+      z-index: 1000;
     }
     /* 刮完保持白底 */
     .cell.revealed {
@@ -126,15 +126,6 @@
       border: none !important;
       visibility: hidden;
     }
-
-    /* 全螢幕遮罩，阻止其他點擊 */
-    #lockOverlay {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: transparent;
-      z-index: 1000; /* 在格子下方 */
-    }
   </style>
 </head>
 <body>
@@ -150,6 +141,7 @@
     <input type="password" id="password" placeholder="輸入電話號碼">
     <button id="loginBtn">送出</button>
   </div>
+
   <!-- 選擇遊戲代碼區塊 -->
   <div id="selectGame" style="display:none;">
     <h2>選擇遊戲代碼</h2>
@@ -209,6 +201,7 @@
         alert(err.error || '密碼錯誤');
       }
     });
+
     // 載入遊戲代碼清單
     async function loadGameList() {
       const res = await fetch('/api/game-list');
@@ -239,7 +232,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code: gameCode, playerId })
         }).catch(err => console.error("心跳失敗", err));
-      }, 30000); // 每 30 秒送一次
+      }, 30000); // 每 2 分鐘送一次
     }
 
     // 玩家進入遊戲代碼
@@ -263,6 +256,10 @@
         }
       });
     }
+
+    function showWinningNumbers(numbers) {
+      document.getElementById('winning').textContent = numbers.join(', ');
+    }
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -281,7 +278,7 @@
       cell.appendChild(canvas);
 
       function scratch(e) {
-        if (e.cancelable) e.preventDefault();
+        if (e.cancelable) e.preventDefault(); // 阻止 iOS 預設捲動
         const rect = canvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
@@ -292,6 +289,7 @@
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
+        // 判斷號碼區域是否已經完全刮開
         const hiddenRect = span.getBoundingClientRect();
         const hiddenPixels = ctx.getImageData(
           hiddenRect.left - rect.left,
@@ -306,8 +304,10 @@
         }
         const ratio = transparent / (hiddenPixels.length / 4);
 
+        // 如果號碼區域透明比例超過 90%，視為完全刮出
         if (ratio > 0.9 && !cell.dataset.revealed) {
           cell.dataset.revealed = "true";
+
           setTimeout(() => {
             cell.classList.remove('enlarged');
             cell.classList.add('revealed');
@@ -317,11 +317,7 @@
               cell.classList.add('win');
             }
             enablePageScroll();
-            enlargedCell = null;
-            // ✅ 移除遮罩
-            const overlayEl = document.getElementById('lockOverlay');
-            if (overlayEl) overlayEl.remove();
-          }, 1500);
+          }, 1500); // 延遲 1.5 秒縮小
         }
       }
 
@@ -330,78 +326,38 @@
       canvas.addEventListener('mousemove', scratch);
     }
 
-    // === 全域鎖定變數 ===
-    let enlargedCell = null;
-
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
-        enlargedCell = cell;
-
-        // 建立全螢幕遮罩，阻止其他點擊
-        const overlay = document.createElement('div');
-        overlay.id = 'lockOverlay';
-        document.body.appendChild(overlay);
-
+        // 建立透明佔位格子
         const placeholder = document.createElement('div');
         placeholder.className = 'cell placeholder';
         cell.parentNode.insertBefore(placeholder, cell);
 
-        cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-
+        // 先捲到中間，確保 iPhone Safari 能定位
+        cell.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'center'
+        });
+        // 再套用放大樣式
         setTimeout(() => {
           cell.classList.add('enlarged');
           disablePageScroll();
         }, 300);
 
+        // 當縮小時移除佔位格子
         cell.addEventListener('transitionend', () => {
           if (!cell.classList.contains('enlarged') && placeholder.parentNode) {
             placeholder.remove();
           }
         });
-
-        initScratchCanvas(cell, number);
-        if (isWin) cell.dataset.win = "true"; // ✅ 正確設定中獎標記
       }
-
+      initScratchCanvas(cell, number);
+      if (isWin) cell.dataset.win = "true";
       if (alreadyRevealed) {
-        initScratchCanvas(cell, number); // ✅ 確保重新進入遊戲時號碼顯示
         cell.classList.add('revealed');
         cell.dataset.revealed = "true";
         if (isWin) cell.classList.add('win');
-      }
-    }
-
-    // ✅ 修正顯示中獎號碼，支援物件陣列
-    function showWinningNumbers(numbers) {
-      const display = numbers.map(n => typeof n === 'object' ? n.number : n);
-      document.getElementById('winning').textContent = display.join(', ');
-    }
-
-    // ✅ 新增 startGame，依據 app.js 的 /api/game/state 回傳資料
-    async function startGame(gameCode) {
-      const res = await fetch('/api/game/state?code=' + encodeURIComponent(gameCode));
-      if (res.ok) {
-        const data = await res.json();
-        const grid = document.getElementById('grid');
-        grid.innerHTML = '';
-
-        // 顯示中獎號碼
-        showWinningNumbers(data.winNumbers);
-
-        // 更新刮出/剩餘數量
-        document.getElementById('scratchedCount').textContent = data.scratched.filter(n => n !== null).length;
-        document.getElementById('remainingCount').textContent = data.scratched.filter(n => n === null).length;
-
-        // 建立格子
-        for (let i = 0; i < data.gridSize; i++) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
-          const number = data.scratched[i] !== null ? data.scratched[i] : data.numbers?.[i] || (i+1);
-          const isWin = data.winNumbers.some(winObj => winObj.number === number);
-          const alreadyRevealed = data.revealed[i];
-          createScratchCell(cell, number, isWin, alreadyRevealed);
-          grid.appendChild(cell);
-        }
       }
     }
   </script>

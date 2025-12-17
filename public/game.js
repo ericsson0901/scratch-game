@@ -1,7 +1,8 @@
-let winningNumbers = [];
+let winningNumbers = []; // 改成陣列
 let totalCells = 0;
 let gameCode = null;
 
+// 提供給 index.html 呼叫
 function startGame(code) {
   gameCode = code;
   document.getElementById('selectGame').style.display = 'none';
@@ -9,40 +10,41 @@ function startGame(code) {
   loadGame();
 }
 
+// 載入遊戲狀態
 async function loadGame() {
   try {
     const state = await fetch(`/api/game/state?code=${encodeURIComponent(gameCode)}`)
       .then(r => r.json());
 
-    // 後端回傳的是 winNumbers
-    winningNumbers = state.winNumbers || [];
+    winningNumbers = state.winningNumbers || []; // 後端回傳陣列
     totalCells = state.gridSize;
-
-    // 顯示中獎號碼
-    document.getElementById('winning').innerText =
-      winningNumbers.map(w => w.number).join(', ');
+    document.getElementById('winning').innerText = winningNumbers.join(', ');
 
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
 
-    // 保留原本的排版邏輯
+    // 動態設定 grid 列數
     const root = Math.sqrt(state.gridSize);
     if (Number.isInteger(root)) {
       grid.style.gridTemplateColumns = `repeat(${root}, auto)`;
     } else {
-      grid.style.gridTemplateColumns = `repeat(6, auto)`;
+      grid.style.gridTemplateColumns = `repeat(6, auto)`; // 預設 6 列
     }
 
-    // 建立格子（不管有沒有刮過都要建立）
+    // 建立格子
     for (let i = 0; i < state.gridSize; i++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
 
-      const number = state.scratched[i] !== null ? state.scratched[i] : state.numbers[i];
-      const isWin = winningNumbers.some(w => w.number === number);
-      const alreadyRevealed = state.scratched[i] !== null;
-
-      createScratchCell(cell, number, isWin, alreadyRevealed);
+      if (state.scratched[i] !== null) {
+        // 已刮過 → 不放大，直接顯示 revealed 狀態
+        createScratchCell(
+          cell,
+          state.scratched[i],
+          winningNumbers.includes(state.scratched[i]),
+          true // alreadyRevealed
+        );
+      }
 
       cell.onclick = () => scratch(i, cell);
       grid.appendChild(cell);
@@ -54,9 +56,11 @@ async function loadGame() {
   }
 }
 
+// 刮格子
 async function scratch(i, cell) {
-  if (cell.querySelector('.hiddenNumber')) return;
+  if (cell.querySelector('.hiddenNumber')) return; // 已經刮過就不再刮
 
+  // 放大並白底
   cell.classList.add('enlarged');
   if (navigator.vibrate) navigator.vibrate(100);
 
@@ -68,19 +72,25 @@ async function scratch(i, cell) {
     });
     const data = await res.json();
 
-    const isWin = winningNumbers.some(w => w.number === data.number);
-    createScratchCell(cell, data.number, isWin, false);
+    // 使用刮刮樂效果顯示號碼（新刮的 → not revealed）
+    createScratchCell(cell, data.number, winningNumbers.includes(data.number), false);
+
+    // 刮完後保持白底
     cell.classList.add('revealed');
 
     const scratchedCount = document.querySelectorAll('.cell .hiddenNumber').length;
     updateStats(scratchedCount);
 
-    if (isWin) cell.dataset.win = "true";
+    // 標記中獎，不要馬上提示
+    if (winningNumbers.includes(data.number)) {
+      cell.dataset.win = "true";
+    }
   } catch (e) {
     alert('刮格子失敗，請稍後再試');
   }
 }
 
+// 更新統計資訊
 function updateStats(scratchedCount) {
   document.getElementById('scratchedCount').innerText = scratchedCount;
   document.getElementById('remainingCount').innerText = totalCells - scratchedCount;
