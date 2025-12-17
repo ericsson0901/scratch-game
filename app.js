@@ -4,7 +4,7 @@ const fs = require('fs');
 const dotenv = require('dotenv');
 const { google } = require('googleapis');
 const archiver = require('archiver');
-const cron = require('node-cron');
+// const cron = require('node-cron'); // ❌ 移除原本的 cron 定時備份
 const unzipper = require('unzipper');
 
 dotenv.config();
@@ -222,9 +222,6 @@ async function restoreFromDrive() {
   }
 }
 
-// 每一個小時執行一次備份
-cron.schedule('0 * * * *', backupZipToDrive);
-
 // 初始化遊戲
 function initGame(code, config = defaultConfig) {
   let arr = Array.from({ length: config.gridSize }, (_, i) => i + 1);
@@ -265,6 +262,28 @@ app.post('/api/manager/login', (req, res) => {
 let gameLocks = {}; 
 // 結構: { gameCode: { playerId, lastHeartbeat: Date } }
 
+// 延遲備份計時器
+let backupTimer = null;
+function scheduleBackupAfterLeave() {
+  // 如果已有計時器 → 先清掉
+  if (backupTimer) {
+    clearTimeout(backupTimer);
+    backupTimer = null;
+  }
+  // 檢查是否所有遊戲都沒有玩家鎖定
+  if (Object.keys(gameLocks).length === 0) {
+    backupTimer = setTimeout(async () => {
+      try {
+        await backupZipToDrive();
+        console.log("所有玩家離開後一小時 → 已執行備份");
+      } catch (err) {
+        console.error("延遲備份失敗:", err);
+      }
+      backupTimer = null;
+    }, 3600000); // 一小時
+  }
+}
+
 // 玩家進入遊戲 → 鎖定代碼
 app.post('/api/join-game', (req, res) => {
   const { code, playerId } = req.body;
@@ -287,6 +306,14 @@ app.post('/api/join-game', (req, res) => {
 
   // 建立新鎖定（舊鎖定不存在）
   gameLocks[code] = { playerId, lastHeartbeat: Date.now() };
+
+  // 有玩家進入 → 取消延遲備份
+  if (backupTimer) {
+    clearTimeout(backupTimer);
+    backupTimer = null;
+    console.log("玩家重新進入 → 延遲備份取消");
+  }
+
   res.json({ success: true });
 });
 
@@ -303,12 +330,16 @@ app.post('/api/heartbeat', (req, res) => {
 // 定時檢查 → 超過 3 分鐘沒心跳就解除鎖定
 setInterval(() => {
   const now = Date.now();
+  let removed = false;
   for (const code in gameLocks) {
     if (now - gameLocks[code].lastHeartbeat > 180000) {
       console.log(`遊戲 ${code} 鎖定解除`);
       delete gameLocks[code];
+      removed = true;
     }
   }
+  // 如果有遊戲解除 → 嘗試排程延遲備份
+  if (removed) scheduleBackupAfterLeave();
 }, 60000); // 每分鐘檢查一次
 
 // 玩家登入（只驗證全域密碼）
