@@ -332,7 +332,7 @@ setInterval(() => {
   const now = Date.now();
   let removed = false;
   for (const code in gameLocks) {
-    if (now - gameLocks[code].lastHeartbeat > 90000) {
+    if (now - gameLocks[code].lastHeartbeat > 45000) {
       console.log(`遊戲 ${code} 鎖定解除`);
       delete gameLocks[code];
       removed = true;

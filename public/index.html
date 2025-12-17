@@ -232,7 +232,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code: gameCode, playerId })
         }).catch(err => console.error("心跳失敗", err));
-      }, 60000); // 每 2 分鐘送一次
+      }, 30000); // 每 2 分鐘送一次
     }
 
     // 玩家進入遊戲代碼
