@@ -1,109 +1,98 @@
 const express = require('express');
-const path = require('path');
 const fs = require('fs');
-const dotenv = require('dotenv');
-const { google } = require('googleapis');
-const archiver = require('archiver');
-// const cron = require('node-cron'); // ❌ 移除原本的 cron 定時備份
+const path = require('path');
 const unzipper = require('unzipper');
-
-dotenv.config();
+const { google } = require('googleapis');
 
 const app = express();
+const PORT = process.env.PORT || 10000;
+
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-const PORT = process.env.PORT || 3000;
-
-// 預設設定（移除 playerPassword）
-let defaultConfig = {
-  gridSize: 9,
-  winNumbers: [7], // 改為陣列格式
-  progressThreshold: 3,
-  thresholds: {} // 新增: 每個號碼獨立門檻
-};
-
-// 全域玩家密碼
-let globalPlayerPassword = process.env.PLAYER_PASSWORD || 'player123';
-
-// 管理員密碼
-let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-
-// 多場遊戲狀態
 let games = {};
-// === 每個代碼獨立存檔 ===
-function getGameFilePath(code) {
-  return path.join(__dirname, "game-" + code + ".json");
+let adminPassword = "admin123";
+let globalPlayerPassword = "player123";
+
+const TARGET_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || "YOUR_FOLDER_ID";
+
+// === Google Drive OAuth ===
+function getOAuthClient() {
+  const auth = new google.auth.GoogleAuth({
+    credentials: JSON.parse(process.env.GDRIVE_SERVICE_JSON || "{}"),
+    scopes: ['https://www.googleapis.com/auth/drive']
+  });
+  return auth;
 }
 
-function saveGame(code) {
-  const file = getGameFilePath(code);
-  fs.writeFileSync(file, JSON.stringify(games[code], null, 2));
+// === 備份到 Google Drive ===
+async function backupZipToDrive() {
+  try {
+    const auth = getOAuthClient();
+    const drive = google.drive({ version: 'v3', auth });
+
+    const fileMetadata = {
+      name: 'games-backup.zip',
+      parents: [TARGET_FOLDER_ID]
+    };
+    const media = {
+      mimeType: 'application/zip',
+      body: fs.createReadStream(path.join(__dirname, 'games-backup.zip'))
+    };
+
+    await drive.files.create({
+      resource: fileMetadata,
+      media: media,
+      fields: 'id'
+    });
+
+    console.log("已備份到 Google Drive");
+  } catch (err) {
+    console.error("備份失敗:", err);
+  }
 }
 
-function loadGame(code) {
-  const file = getGameFilePath(code);
-  if (fs.existsSync(file)) {
-    try {
-      games[code] = JSON.parse(fs.readFileSync(file, 'utf-8'));
-      // 相容舊格式：將 winNumber 轉為 winNumbers 陣列
-      const config = games[code].config;
-      if (typeof config?.winNumber === 'number') {
-        config.winNumbers = [config.winNumber];
-        delete config.winNumber;
-      }
-      // 相容舊格式：如果 thresholds 不存在，建立空物件
-      if (!config.thresholds) {
-        config.thresholds = {};
-      }
-    } catch (err) {
-      console.error("載入遊戲 " + code + " 資料失敗:", err);
+// === 從 Google Drive 還原最新備份 ===
+async function restoreFromDrive() {
+  try {
+    const auth = getOAuthClient();
+    const drive = google.drive({ version: 'v3', auth });
+
+    const res = await drive.files.list({
+      q: "name='games-backup.zip' and '" + TARGET_FOLDER_ID + "' in parents",
+      orderBy: 'createdTime desc',
+      pageSize: 1,
+      fields: 'files(id, name)'
+    });
+
+    if (res.data.files.length === 0) {
+      console.log("沒有找到備份檔案");
+      return;
     }
-  }
-}
 
-// === 載入所有遊戲檔案 ===
-function loadAllGames() {
-  const files = fs.readdirSync(__dirname).filter(f => f.startsWith('game-') && f.endsWith('.json'));
-  for (const file of files) {
-    const code = file.replace('game-', '').replace('.json', '');
-    loadGame(code);
-  }
-  console.log("已載入所有遊戲代碼:", Object.keys(games));
-}
+    const fileId = res.data.files[0].id;
+    const dest = fs.createWriteStream(path.join(__dirname, 'games-backup.zip'));
 
-// === 密碼持久化檔案 ===
-function savePasswords() {
-  const file = path.join(__dirname, "game-__config.json");
-  const data = {
-    globalPlayerPassword,
-    adminPassword
-  };
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
+    await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' })
+      .then(resp => {
+        return new Promise((resolve, reject) => {
+          resp.data.pipe(dest);
+          dest.on('finish', resolve);
+          dest.on('error', reject);
+        });
+      });
 
-function loadPasswords() {
-  const file = path.join(__dirname, "game-__config.json");
-  if (fs.existsSync(file)) {
-    const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
-    if (data.globalPlayerPassword) globalPlayerPassword = data.globalPlayerPassword;
-    if (data.adminPassword) adminPassword = data.adminPassword;
-  }
-}
+    console.log("已下載最新備份 zip");
 
-// 初始化遊戲
-function initGame(code, config = defaultConfig) {
-  let arr = Array.from({ length: config.gridSize }, (_, i) => i + 1);
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    await fs.createReadStream(path.join(__dirname, 'games-backup.zip'))
+      .pipe(unzipper.Extract({ path: __dirname }))
+      .promise();
+
+    console.log("已還原遊戲 JSON 檔案");
+
+    loadPasswords();
+  } catch (err) {
+    console.error("還原失敗:", err);
   }
-  games[code] = {
-    numbers: arr,
-    scratched: Array(config.gridSize).fill(null),
-    config: { ...config, thresholds: config.thresholds || {} }
-  };
-  saveGame(code);
 }
 // === Admin 與 Manager 登入 API ===
 // Admin 登入：比對 adminPassword
@@ -190,7 +179,7 @@ app.post('/api/heartbeat', (req, res) => {
   res.status(400).json({ error: '遊戲未鎖定或玩家不符' });
 });
 
-// 定時檢查 → 超過 3 分鐘沒心跳就解除鎖定
+// 定時檢查 → 超過 45 秒沒心跳就解除鎖定
 setInterval(() => {
   const now = Date.now();
   let removed = false;
@@ -234,244 +223,141 @@ app.get('/api/game/state', (req, res) => {
     // 不回傳 thresholds，避免玩家看到
   });
 });
-// 玩家刮格子（含進度門檻替換中獎號碼 + 中獎立即備份）
-app.post('/api/game/scratch', async (req, res) => {
+// === 玩家刮格子 API ===
+app.post('/api/game/scratch', (req, res) => {
   const { code, index } = req.body;
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
   const game = games[code];
-  if (index < 0 || index >= game.config.gridSize) {
+  if (index < 0 || index >= game.config.gridSize * game.config.gridSize) {
     return res.status(400).json({ error: 'Invalid index' });
   }
 
   if (game.scratched[index] !== null) {
-    return res.json({ number: game.scratched[index] });
+    return res.json({ alreadyRevealed: true, number: game.scratched[index] });
   }
 
-  let number = game.numbers[index];
-  const scratchedCount = game.scratched.filter(n => n !== null).length;
+  // 隨機產生號碼
+  let number = Math.floor(Math.random() * 100) + 1;
 
-  // 在進度門檻前，如果刮到中獎號碼 → 替換掉
-  if (game.config.winNumbers.includes(number)) {
-    const threshold = game.config.thresholds?.[number] ?? game.config.progressThreshold;
-    if (scratchedCount < threshold) {
-      const availableIndexes = game.numbers
-        .map((n, i) => ({ n, i }))
-        .filter(obj => game.scratched[obj.i] === null && !game.config.winNumbers.includes(obj.n) && obj.i !== index);
-
-      if (availableIndexes.length > 0) {
-        const swapTarget = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
-        game.numbers[swapTarget.i] = number;
-        number = swapTarget.n;
-        game.numbers[index] = number;
-      }
+  // 檢查 thresholds → 若未達門檻則替換成其他號碼
+  if (game.config.thresholds && game.config.thresholds[number]) {
+    const threshold = game.config.thresholds[number];
+    const count = game.scratched.filter(n => n !== null).length;
+    if (count < threshold) {
+      number = Math.floor(Math.random() * 100) + 1;
     }
   }
 
   game.scratched[index] = number;
   saveGame(code);
 
-  if (game.config.winNumbers.includes(number)) {
-    try {
-      await backupZipToDrive();
-      console.log(`遊戲 ${code} 中獎號碼刮出 → 已執行備份`);
-    } catch (err) {
-      console.error("中獎備份失敗:", err);
-    }
-  }
+  // 立即備份
+  backupZipToDrive();
 
-  res.json({ number });
+  res.json({ number, isWin: game.config.winNumbers.includes(number) });
 });
 
-// === Manager 重製遊戲 ===
-app.post('/api/manager/reset', (req, res) => {
-  const auth = req.headers.authorization;
-  const { code } = req.body;
-  if (!auth || auth !== "Bearer manager-token-" + code) {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-  loadGame(code);
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
-
-  initGame(code, games[code].config);
-  res.json({ message: "遊戲 " + code + " 已由場次管理員重製" });
-});
-
-// === Manager 修改格子數 ===
-app.post('/api/manager/config/grid', (req, res) => {
-  const auth = req.headers.authorization;
-  const { code, gridSize } = req.body;
-  if (!auth || auth !== "Bearer manager-token-" + code) {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
+// === Manager API ===
+app.post('/api/manager/config', (req, res) => {
+  const { code, gridSize, winNumbers, managerPassword } = req.body;
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
   games[code].config.gridSize = gridSize;
+  games[code].config.winNumbers = winNumbers;
+  games[code].config.managerPassword = managerPassword;
   saveGame(code);
-  res.json({ message: "遊戲 " + code + " 格子數已更新為 " + gridSize });
-});
 
-// === Manager 修改中獎號碼 ===
-app.post('/api/manager/config/win', (req, res) => {
-  const auth = req.headers.authorization;
-  const { code, winNumbers } = req.body;
-  if (!auth || auth !== "Bearer manager-token-" + code) {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-  loadGame(code);
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
-
-  games[code].config.winNumbers = Array.isArray(winNumbers) ? winNumbers : games[code].config.winNumbers;
-  saveGame(code);
-  res.json({ message: "遊戲 " + code + " 中獎號碼已更新為 " + games[code].config.winNumbers.join(', ') });
+  res.json({ success: true, config: games[code].config });
 });
 
 // === Admin 建立遊戲 ===
 app.post('/api/admin/create-game', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
   const { code, managerPassword } = req.body;
-  if (!code) return res.status(400).json({ error: 'Game code required' });
-  loadGame(code);
   if (games[code]) return res.status(400).json({ error: 'Game already exists' });
 
-  initGame(code, { ...defaultConfig, managerPassword });
-  res.json({ message: "遊戲 " + code + " 已建立" });
+  games[code] = {
+    config: {
+      gridSize: 5,
+      winNumbers: [],
+      progressThreshold: 0,
+      thresholds: {},
+      managerPassword
+    },
+    scratched: Array(25).fill(null)
+  };
+  saveGame(code);
+
+  res.json({ success: true, message: 'Game created', code });
 });
 // === Admin 重設遊戲 ===
 app.post('/api/admin/reset', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
   const { code } = req.body;
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
-  initGame(code, games[code].config);
-  res.json({ message: "遊戲 " + code + " 已重設" });
+  games[code].scratched = Array(games[code].config.gridSize * games[code].config.gridSize).fill(null);
+  saveGame(code);
+
+  res.json({ success: true, message: 'Game reset' });
 });
 
 // === Admin 刪除遊戲 ===
 app.post('/api/admin/delete-game', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
   const { code } = req.body;
-  loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
   delete games[code];
-  const file = getGameFilePath(code);
-  if (fs.existsSync(file)) fs.unlinkSync(file);
-  res.json({ message: "遊戲 " + code + " 已刪除" });
+  fs.unlinkSync(path.join(__dirname, code + '.json'));
+
+  res.json({ success: true, message: 'Game deleted' });
 });
 
-// === Admin 修改遊戲設定 ===
-app.post('/api/admin/config', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
-  const { code, gridSize, winNumbers, progressThreshold, thresholds, managerPassword } = req.body;
-  loadGame(code);
-  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
-
-  games[code].config.gridSize = gridSize || games[code].config.gridSize;
-  games[code].config.winNumbers = Array.isArray(winNumbers) ? winNumbers : games[code].config.winNumbers;
-  games[code].config.progressThreshold = progressThreshold || games[code].config.progressThreshold;
-  if (thresholds) games[code].config.thresholds = thresholds;
-  if (managerPassword) games[code].config.managerPassword = managerPassword;
-
-  saveGame(code);
-  res.json({ success: true, config: games[code].config });
-});
-
-// Admin 查詢所有遊戲代碼清單
-app.get('/api/admin/game-list', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
-  const codes = Object.keys(games).filter(code => !code.startsWith('__'));
-  res.json({ codes });
-});
-
-// === Admin 查看遊戲進度 ===
+// === Admin 查看進度 (顯示 thresholds 狀態) ===
 app.get('/api/admin/progress', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
   const { code } = req.query;
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
   const game = games[code];
   const scratchedCount = game.scratched.filter(n => n !== null).length;
-  const remainingCount = game.scratched.filter(n => n === null).length;
+  const remainingCount = game.scratched.length - scratchedCount;
 
-  // 回傳每個號碼的進度
   const progress = {};
-  for (const win of game.config.winNumbers) {
-    const threshold = game.config.thresholds?.[win] ?? game.config.progressThreshold;
-    progress[win] = {
-      scratchedCount,
-      threshold,
-      thresholdReached: scratchedCount >= threshold
-    };
+  if (game.config.thresholds) {
+    for (const [num, threshold] of Object.entries(game.config.thresholds)) {
+      progress[num] = {
+        threshold,
+        thresholdReached: scratchedCount >= threshold
+      };
+    }
   }
 
-  res.json({
-    scratchedCount,
-    remainingCount,
-    progress
-  });
+  res.json({ scratchedCount, remainingCount, progress });
 });
 
-// 修改管理員密碼（持久化）
+// === Admin 修改密碼 ===
 app.post('/api/admin/change-password', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
-
   const { newPassword } = req.body;
-  if (!newPassword) return res.status(400).json({ error: 'New password required' });
-
   adminPassword = newPassword;
-  games.__adminPassword = adminPassword;
   savePasswords();
-  res.json({ message: "管理員密碼已更新" });
+  res.json({ success: true, message: 'Admin password updated' });
 });
 
-// 修改全域玩家密碼（持久化）
+// === Admin 修改全域玩家密碼 ===
 app.post('/api/admin/change-global-password', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
-
   const { newPassword } = req.body;
-  if (!newPassword) return res.status(400).json({ error: 'New player password required' });
-
   globalPlayerPassword = newPassword;
-  games.__globalPlayerPassword = globalPlayerPassword;
   savePasswords();
-  res.json({ message: "全域玩家密碼已更新" });
+  res.json({ success: true, message: 'Global player password updated' });
 });
 
-// 啟動伺服器
+// === 啟動伺服器 ===
 app.listen(PORT, async () => {
   console.log("Server running on port " + PORT);
-  await restoreFromDrive();
+  await restoreFromDrive();   // 啟動時自動還原
   loadAllGames();
   loadPasswords();
 });
