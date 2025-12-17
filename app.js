@@ -4,7 +4,6 @@ const fs = require('fs');
 const dotenv = require('dotenv');
 const { google } = require('googleapis');
 const archiver = require('archiver');
-// const cron = require('node-cron'); // ❌ 移除原本的 cron 定時備份
 const unzipper = require('unzipper');
 
 dotenv.config();
@@ -13,10 +12,10 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ✅ 使用 Render 提供的 PORT，避免 API 無法公開
 const PORT = process.env.PORT || 3000;
 
-// 預設設定（移除 playerPassword）
-// ✅ 改成支援每個中獎號碼有獨立門檻
+// 預設設定（支援每個中獎號碼有獨立門檻）
 let defaultConfig = {
   gridSize: 9,
   winNumbers: [
@@ -32,6 +31,7 @@ let adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
 // 多場遊戲狀態
 let games = {};
+
 // === 每個代碼獨立存檔 ===
 function getGameFilePath(code) {
   return path.join(__dirname, "game-" + code + ".json");
@@ -113,6 +113,7 @@ function getOAuthClient() {
   oAuth2Client.setCredentials(token);
   return oAuth2Client;
 }
+
 // 共用資料夾 ID（可選，如果要指定資料夾）
 const TARGET_FOLDER_ID = '1ZbWY6V2RCllvccOsL6cftTz1kqZENE9Y';
 // 打包所有遊戲 JSON 成 zip 並上傳到 Google Drive
@@ -184,6 +185,7 @@ async function backupZipToDrive() {
     console.error("備份失敗:", err);
   }
 }
+
 // 從 Google Drive 還原最新備份
 async function restoreFromDrive() {
   try {
@@ -247,6 +249,7 @@ function initGame(code, config = defaultConfig) {
 // Admin 登入：比對 adminPassword
 app.post('/api/admin', (req, res) => {
   const { password } = req.body;
+  console.log("收到 admin 登入請求:", password, "目前設定:", adminPassword);
   if (password === adminPassword) {
     return res.json({ token: "admin-token" });
   }
