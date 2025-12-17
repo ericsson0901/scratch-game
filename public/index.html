@@ -263,11 +263,6 @@
         }
       });
     }
-
-    // 顯示中獎號碼（後續第四段會修改成支援物件陣列）
-    function showWinningNumbers(numbers) {
-      document.getElementById('winning').textContent = numbers.join(', ');
-    }
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -369,6 +364,7 @@
       }
 
       if (alreadyRevealed) {
+        initScratchCanvas(cell, number); // ✅ 確保重新進入遊戲時號碼顯示
         cell.classList.add('revealed');
         cell.dataset.revealed = "true";
         if (isWin) cell.classList.add('win');
@@ -379,6 +375,34 @@
     function showWinningNumbers(numbers) {
       const display = numbers.map(n => typeof n === 'object' ? n.number : n);
       document.getElementById('winning').textContent = display.join(', ');
+    }
+
+    // ✅ 新增 startGame，依據 app.js 的 /api/game/state 回傳資料
+    async function startGame(gameCode) {
+      const res = await fetch('/api/game/state?code=' + encodeURIComponent(gameCode));
+      if (res.ok) {
+        const data = await res.json();
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+
+        // 顯示中獎號碼
+        showWinningNumbers(data.winNumbers);
+
+        // 更新刮出/剩餘數量
+        document.getElementById('scratchedCount').textContent = data.scratched.filter(n => n !== null).length;
+        document.getElementById('remainingCount').textContent = data.scratched.filter(n => n === null).length;
+
+        // 建立格子
+        for (let i = 0; i < data.gridSize; i++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          const number = data.scratched[i] !== null ? data.scratched[i] : data.numbers?.[i] || (i+1);
+          const isWin = data.winNumbers.some(winObj => winObj.number === number);
+          const alreadyRevealed = data.revealed[i];
+          createScratchCell(cell, number, isWin, alreadyRevealed);
+          grid.appendChild(cell);
+        }
+      }
     }
   </script>
 </body>
