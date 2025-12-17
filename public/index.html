@@ -64,7 +64,7 @@
       width: 80vw;
       height: 80vw;
       background: #fff;
-      z-index: 1000;
+      z-index: 1001; /* 提高層級，蓋在遮罩之上 */
     }
     /* 刮完保持白底 */
     .cell.revealed {
@@ -126,6 +126,16 @@
       border: none !important;
       visibility: hidden;
     }
+
+    /* 新增全螢幕透明遮罩，鎖住其他操作 */
+    #lockOverlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0); /* 完全透明 */
+      z-index: 1000; /* 在格子下面，但蓋住其他元素 */
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -135,6 +145,8 @@
     <button id="closeAdBtn">聯絡我們</button>
   </div>
 
+  <!-- 新增透明遮罩 -->
+  <div id="lockOverlay"></div>
   <!-- 登入區塊 -->
   <div id="login" style="display:none;">
     <h2>請輸入電話號碼</h2>
@@ -163,7 +175,6 @@
       localStorage.setItem('playerId', crypto.randomUUID());
     }
     const playerId = localStorage.getItem('playerId');
-
     // 全域禁止捲動控制
     function disablePageScroll() {
       document.body.classList.add('noscroll');
@@ -232,7 +243,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code: gameCode, playerId })
         }).catch(err => console.error("心跳失敗", err));
-      }, 30000); // 每 2 分鐘送一次
+      }, 30000); // 每 30 秒送一次
     }
 
     // 玩家進入遊戲代碼
@@ -317,7 +328,8 @@
               cell.classList.add('win');
             }
             enablePageScroll();
-          }, 1500); // 延遲 1.5 秒縮小
+            document.getElementById('lockOverlay').style.display = 'none'; // 移除遮罩
+          }, 1500);
         }
       }
 
@@ -328,24 +340,21 @@
 
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
-        // 建立透明佔位格子
         const placeholder = document.createElement('div');
         placeholder.className = 'cell placeholder';
         cell.parentNode.insertBefore(placeholder, cell);
 
-        // 先捲到中間，確保 iPhone Safari 能定位
         cell.scrollIntoView({
           behavior: 'smooth',
           block: 'center',
           inline: 'center'
         });
-        // 再套用放大樣式
         setTimeout(() => {
           cell.classList.add('enlarged');
           disablePageScroll();
+          document.getElementById('lockOverlay').style.display = 'block'; // 顯示遮罩
         }, 300);
 
-        // 當縮小時移除佔位格子
         cell.addEventListener('transitionend', () => {
           if (!cell.classList.contains('enlarged') && placeholder.parentNode) {
             placeholder.remove();
@@ -360,6 +369,17 @@
         if (isWin) cell.classList.add('win');
       }
     }
+
+    // 遮罩阻止點擊
+    const lockOverlay = document.getElementById('lockOverlay');
+    lockOverlay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
+    lockOverlay.addEventListener('touchstart', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
   </script>
 </body>
 </html>
