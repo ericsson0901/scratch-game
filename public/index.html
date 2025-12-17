@@ -155,7 +155,6 @@
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
     <div class="grid" id="grid"></div>
   </div>
-
   <script src="game.js"></script>
   <script>
     // === 固定玩家 UID ===
@@ -232,7 +231,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code: gameCode, playerId })
         }).catch(err => console.error("心跳失敗", err));
-      }, 30000); // 每 2 分鐘送一次
+      }, 30000); // 每 30 秒送一次
     }
 
     // 玩家進入遊戲代碼
@@ -317,6 +316,7 @@
               cell.classList.add('win');
             }
             enablePageScroll();
+            enlargedCell = null; // ✅ 解鎖，允許再次點擊其他格子
           }, 1500); // 延遲 1.5 秒縮小
         }
       }
@@ -326,8 +326,16 @@
       canvas.addEventListener('mousemove', scratch);
     }
 
+    // === 新增全域鎖定變數 ===
+    let enlargedCell = null;
+
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
+        // ✅ 如果已有格子放大 → 不允許再放大其他格子
+        if (enlargedCell) return;
+
+        enlargedCell = cell; // 記錄目前放大的格子
+
         // 建立透明佔位格子
         const placeholder = document.createElement('div');
         placeholder.className = 'cell placeholder';
