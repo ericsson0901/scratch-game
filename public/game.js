@@ -14,23 +14,26 @@ async function loadGame() {
     const state = await fetch(`/api/game/state?code=${encodeURIComponent(gameCode)}`)
       .then(r => r.json());
 
-    // ✅ 後端回傳的是 winNumbers
+    // 後端回傳的是 winNumbers
     winningNumbers = state.winNumbers || [];
     totalCells = state.gridSize;
 
-    // ✅ 顯示中獎號碼時要 map 出 number
+    // 顯示中獎號碼
     document.getElementById('winning').innerText =
       winningNumbers.map(w => w.number).join(', ');
 
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
 
+    // 保留原本的排版邏輯
     const root = Math.sqrt(state.gridSize);
-    grid.style.gridTemplateColumns = Number.isInteger(root)
-      ? `repeat(${root}, auto)`
-      : `repeat(6, auto)`;
+    if (Number.isInteger(root)) {
+      grid.style.gridTemplateColumns = `repeat(${root}, auto)`;
+    } else {
+      grid.style.gridTemplateColumns = `repeat(6, auto)`;
+    }
 
-    // ✅ 不管有沒有刮過，都要建立格子
+    // 建立格子（不管有沒有刮過都要建立）
     for (let i = 0; i < state.gridSize; i++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
@@ -65,7 +68,6 @@ async function scratch(i, cell) {
     });
     const data = await res.json();
 
-    // ✅ 判斷中獎號碼改用 some
     const isWin = winningNumbers.some(w => w.number === data.number);
     createScratchCell(cell, data.number, isWin, false);
     cell.classList.add('revealed');
