@@ -75,6 +75,15 @@
       cursor: pointer;
       font-weight: bold;
     }
+    /* 👉 新增：門檻輸入框樣式 */
+    .thresholdInput {
+      width: 50px;
+      margin-left: 8px;
+      border-radius: 4px;
+      border: none;
+      padding: 3px;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
@@ -108,7 +117,6 @@
         <div id="winNumbersTags"></div>
       </div><br>
       
-      <input type="number" name="progressThreshold" value="3" placeholder="進度門檻"><br>
       <input type="password" name="managerPassword" placeholder="場次管理員密碼"><br>
       <button type="submit">更新設定</button>
     </form>
@@ -240,7 +248,7 @@
         const data = await res.json();
         document.getElementById('scratchedCountAdmin').textContent = data.scratchedCount;
         document.getElementById('remainingCountAdmin').textContent = data.remainingCount;
-        document.getElementById('thresholdAdmin').textContent = data.progressThreshold;
+        document.getElementById('thresholdAdmin').textContent = JSON.stringify(data.progressThresholds);
         document.getElementById('thresholdReached').textContent = data.thresholdReached ? '是' : '否';
         const percent = data.scratchedCount / (data.scratchedCount + data.remainingCount) * 100;
         document.getElementById('progressFill').style.width = percent + '%';
@@ -291,8 +299,9 @@
       const data = await res.json();
       document.getElementById('changeGlobalPasswordStatus').textContent = data.message || data.error;
     });
-    // ===== 標籤式輸入 (新增/刪除中獎號碼) =====
+    // ===== 標籤式輸入 (新增/刪除中獎號碼 + 門檻) =====
     const winNumbers = [];
+    const thresholds = {};
     const input = document.getElementById('winNumberInput');
     const tagsDiv = document.getElementById('winNumbersTags');
 
@@ -302,6 +311,7 @@
         const num = parseInt(input.value.trim(), 10);
         if (!isNaN(num) && !winNumbers.includes(num)) {
           winNumbers.push(num);
+          thresholds[num] = 0; // 預設門檻值
           renderTags();
         }
         input.value = '';
@@ -315,21 +325,30 @@
         const tag = document.createElement('div');
         tag.className = 'tag';
         tag.textContent = num;
+        const thresholdInput = document.createElement('input');
+        thresholdInput.type = 'number';
+        thresholdInput.className = 'thresholdInput';
+        thresholdInput.value = thresholds[num] || 0;
+        thresholdInput.onchange = () => {
+          thresholds[num] = parseInt(thresholdInput.value, 10) || 0;
+        };
         const remove = document.createElement('span');
         remove.textContent = '✖';
         remove.onclick = () => {
           const idx = winNumbers.indexOf(num);
           if (idx > -1) {
             winNumbers.splice(idx, 1);
+            delete thresholds[num];
             renderTags();
           }
         };
+        tag.appendChild(thresholdInput);
         tag.appendChild(remove);
         tagsDiv.appendChild(tag);
       });
     }
 
-    // 修改遊戲設定 (送出時包含 winNumbers)
+    // 修改遊戲設定 (送出時包含 winNumbers + progressThresholds)
     document.getElementById('configForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
@@ -338,7 +357,7 @@
         code: formData.get('code'),
         gridSize: parseInt(formData.get('gridSize')),
         winNumbers: winNumbers,
-        progressThreshold: parseInt(formData.get('progressThreshold')),
+        progressThresholds: thresholds,
         managerPassword: formData.get('managerPassword')
       };
 

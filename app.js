@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 3000;
 let defaultConfig = {
   gridSize: 9,
   winNumbers: [7], // 改為陣列格式
-  progressThreshold: 3
+  progressThresholds: { "7": 3 } // 👉 修改：改成物件，支援每個號碼獨立門檻
 };
 
 // 全域玩家密碼
@@ -50,6 +50,15 @@ function loadGame(code) {
       if (typeof config?.winNumber === 'number') {
         config.winNumbers = [config.winNumber];
         delete config.winNumber;
+      }
+      // 👉 相容舊格式：如果只有單一 progressThreshold，轉換成物件
+      if (typeof config?.progressThreshold === 'number') {
+        const thresholds = {};
+        (config.winNumbers || []).forEach(num => {
+          thresholds[num] = config.progressThreshold;
+        });
+        config.progressThresholds = thresholds;
+        delete config.progressThreshold;
       }
     } catch (err) {
       console.error("載入遊戲 " + code + " 資料失敗:", err);
@@ -236,7 +245,6 @@ function initGame(code, config = defaultConfig) {
   };
   saveGame(code);
 }
-
 // === Admin 與 Manager 登入 API ===
 // Admin 登入：比對 adminPassword
 app.post('/api/admin', (req, res) => {
@@ -341,7 +349,6 @@ setInterval(() => {
   // 如果有遊戲解除 → 嘗試排程延遲備份
   if (removed) scheduleBackupAfterLeave();
 }, 60000); // 每分鐘檢查一次
-
 // 玩家登入（只驗證全域密碼）
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
@@ -367,7 +374,7 @@ app.get('/api/game/state', (req, res) => {
   res.json({
     gridSize: game.config.gridSize,
     winningNumbers: game.config.winNumbers,
-    progressThreshold: game.config.progressThreshold,
+    progressThresholds: game.config.progressThresholds, // 👉 修改：回傳物件，但玩家端不會顯示
     scratched: game.scratched,
     revealed: game.scratched.map(n => n !== null)
   });
@@ -391,8 +398,12 @@ app.post('/api/game/scratch', async (req, res) => {
   let number = game.numbers[index];
   const scratchedCount = game.scratched.filter(n => n !== null).length;
 
-  // 在進度門檻前，如果刮到中獎號碼 → 替換掉
-  if (scratchedCount < game.config.progressThreshold &&
+  // 👉 修改：檢查該號碼的專屬門檻
+  const thresholds = game.config.progressThresholds || {};
+  const thresholdForNumber = thresholds[number];
+
+  if (typeof thresholdForNumber === 'number' &&
+      scratchedCount < thresholdForNumber &&
       game.config.winNumbers.includes(number)) {
 
     // 找一個尚未刮開且不是中獎號碼的格子
@@ -526,13 +537,13 @@ app.post('/api/admin/config', (req, res) => {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
-  const { code, gridSize, winNumbers, progressThreshold, managerPassword } = req.body;
+  const { code, gridSize, winNumbers, progressThresholds, managerPassword } = req.body;
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
 
   games[code].config.gridSize = gridSize || games[code].config.gridSize;
   games[code].config.winNumbers = Array.isArray(winNumbers) ? winNumbers : games[code].config.winNumbers;
-  games[code].config.progressThreshold = progressThreshold || games[code].config.progressThreshold;
+  games[code].config.progressThresholds = typeof progressThresholds === 'object' ? progressThresholds : games[code].config.progressThresholds;
   if (managerPassword) games[code].config.managerPassword = managerPassword;
 
   saveGame(code);
@@ -564,13 +575,12 @@ app.get('/api/admin/progress', (req, res) => {
   const game = games[code];
   const scratchedCount = game.scratched.filter(n => n !== null).length;
   const remainingCount = game.scratched.filter(n => n === null).length;
-  const thresholdReached = scratchedCount >= game.config.progressThreshold;
 
   res.json({
     scratchedCount,
     remainingCount,
-    progressThreshold: game.config.progressThreshold,
-    thresholdReached
+    progressThresholds: game.config.progressThresholds || {},
+    thresholdReached: scratchedCount >= Math.min(...Object.values(game.config.progressThresholds || { 0: 0 }))
   });
 });
 
