@@ -37,7 +37,10 @@ function getGameFilePath(code) {
 
 function saveGame(code) {
   const file = getGameFilePath(code);
-  fs.writeFileSync(file, JSON.stringify(games[code], null, 2));
+  // 👉 修改：改成非同步存檔，避免阻塞
+  fs.writeFile(file, JSON.stringify(games[code], null, 2), err => {
+    if (err) console.error("存檔失敗:", err);
+  });
 }
 
 function loadGame(code) {
@@ -94,7 +97,6 @@ function loadPasswords() {
     if (data.adminPassword) adminPassword = data.adminPassword;
   }
 }
-
 // === Google Drive 備份設定（改用 OAuth） ===
 function getOAuthClient() {
   if (!process.env.GOOGLE_CREDENTIALS || !process.env.GOOGLE_TOKEN) {
@@ -380,8 +382,8 @@ app.get('/api/game/state', (req, res) => {
   });
 });
 
-// 玩家刮格子（含進度門檻替換中獎號碼 + 中獎立即備份）
-app.post('/api/game/scratch', async (req, res) => {
+// 玩家刮格子（含進度門檻替換中獎號碼 + 中獎延後備份）
+app.post('/api/game/scratch', (req, res) => {
   const { code, index } = req.body;
   loadGame(code);
   if (!games[code]) return res.status(404).json({ error: 'Game not found' });
@@ -407,24 +409,25 @@ app.post('/api/game/scratch', async (req, res) => {
       game.config.winNumbers.includes(number)) {
 
     // 找一個尚未刮開的格子，且該號碼已達到門檻或不是中獎號碼
-    const availableIndexes = game.numbers
-      .map((n, i) => ({ n, i }))
-      .filter(obj => {
-        if (game.scratched[obj.i] !== null) return false;
-        if (obj.i === index) return false;
-        const t = thresholds[obj.n];
-        if (game.config.winNumbers.includes(obj.n)) {
-          return typeof t === 'number' ? scratchedCount >= t : true;
+    let swapTarget = null;
+    for (let i = 0; i < game.numbers.length; i++) {
+      const n = game.numbers[i];
+      if (game.scratched[i] !== null || i === index) continue;
+      const t = thresholds[n];
+      if (game.config.winNumbers.includes(n)) {
+        if (typeof t === 'number' && scratchedCount >= t) {
+          swapTarget = { n, i };
+          break;
         }
-        return true;
-      });
+      } else {
+        swapTarget = { n, i };
+        break;
+      }
+    }
 
-    if (availableIndexes.length > 0) {
-      const swapTarget = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
-
+    if (swapTarget) {
       // 把中獎號碼移到新的位置
       game.numbers[swapTarget.i] = number;
-
       // 原本位置顯示替代號碼
       number = swapTarget.n;
       game.numbers[index] = number;
@@ -434,17 +437,14 @@ app.post('/api/game/scratch', async (req, res) => {
   game.scratched[index] = number;
   saveGame(code);
 
-  // ✅ 如果刮出的號碼是中獎號碼 → 立刻執行備份
-  if (game.config.winNumbers.includes(number)) {
-    try {
-      await backupZipToDrive();
-      console.log(`遊戲 ${code} 中獎號碼刮出 → 已執行備份`);
-    } catch (err) {
-      console.error("中獎備份失敗:", err);
-    }
-  }
-
   res.json({ number });
+
+  // ✅ 延後備份：在背景執行，不阻塞回應
+  if (game.config.winNumbers.includes(number)) {
+    backupZipToDrive()
+      .then(() => console.log(`遊戲 ${code} 中獎號碼刮出 → 已執行備份`))
+      .catch(err => console.error("中獎備份失敗:", err));
+  }
 });
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
