@@ -361,13 +361,22 @@
             placeholder.remove();
           }
         });
-      }
-      initScratchCanvas(cell, number);
-      if (isWin) cell.dataset.win = "true";
-      if (alreadyRevealed) {
+
+        initScratchCanvas(cell, number);
+        if (isWin) cell.dataset.win = "true";
+      } else {
+        // 👉 已刮開的格子只顯示號碼，不建立 canvas
+        const span = document.createElement('span');
+        span.className = 'hiddenNumber';
+        span.textContent = number;
+        cell.appendChild(span);
+
         cell.classList.add('revealed');
         cell.dataset.revealed = "true";
-        if (isWin) cell.classList.add('win');
+        if (isWin) {
+          cell.classList.add('win');
+          cell.dataset.win = "true";
+        }
       }
     }
 
