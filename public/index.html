@@ -167,7 +167,6 @@
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
     <div class="grid" id="grid"></div>
   </div>
-
   <script src="game.js"></script>
   <script>
     // === 固定玩家 UID ===
@@ -328,7 +327,10 @@
               cell.classList.add('win');
             }
             enablePageScroll();
-            document.getElementById('lockOverlay').style.display = 'none'; // 移除遮罩
+            document.getElementById('lockOverlay').style.display = 'none';
+
+            // 👉 修改：刮完後移除 canvas，避免阻止頁面捲動
+            canvas.remove();
           }, 1500);
         }
       }
@@ -337,7 +339,6 @@
       canvas.addEventListener('touchmove', scratch, { passive: false });
       canvas.addEventListener('mousemove', scratch);
     }
-
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
         const placeholder = document.createElement('div');
