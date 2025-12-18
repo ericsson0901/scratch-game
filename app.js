@@ -406,10 +406,18 @@ app.post('/api/game/scratch', async (req, res) => {
       scratchedCount < thresholdForNumber &&
       game.config.winNumbers.includes(number)) {
 
-    // 找一個尚未刮開且不是中獎號碼的格子
+    // 找一個尚未刮開的格子，且該號碼已達到門檻或不是中獎號碼
     const availableIndexes = game.numbers
       .map((n, i) => ({ n, i }))
-      .filter(obj => game.scratched[obj.i] === null && !game.config.winNumbers.includes(obj.n) && obj.i !== index);
+      .filter(obj => {
+        if (game.scratched[obj.i] !== null) return false;
+        if (obj.i === index) return false;
+        const t = thresholds[obj.n];
+        if (game.config.winNumbers.includes(obj.n)) {
+          return typeof t === 'number' ? scratchedCount >= t : true;
+        }
+        return true;
+      });
 
     if (availableIndexes.length > 0) {
       const swapTarget = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
