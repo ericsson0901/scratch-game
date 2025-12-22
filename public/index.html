@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <title>刮刮樂遊戲</title>
+  <title>參與促銷活動</title>
   <!-- 保持手機畫面固定在 100% 大小 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="stylesheet" href="style.css">
@@ -219,6 +219,15 @@
         const data = await res.json();
         const ul = document.getElementById('gameListUl');
         ul.innerHTML = '';
+
+        // 👉 新增排序邏輯
+        data.codes.sort((a, b) => {
+          if (!isNaN(a) && !isNaN(b)) {
+            return Number(a) - Number(b);
+          }
+          return a.localeCompare(b, 'zh-Hant');
+        });
+
         data.codes.forEach(code => {
           const li = document.createElement('li');
           const btn = document.createElement('button');
@@ -233,7 +242,6 @@
     }
 
     document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
-
     // 啟動心跳
     function startHeartbeat(gameCode, playerId) {
       setInterval(() => {
