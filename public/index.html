@@ -220,10 +220,12 @@
         const ul = document.getElementById('gameListUl');
         ul.innerHTML = '';
 
-        // 👉 新增排序邏輯
+        // 👉 修改排序邏輯：依據「第xx台」中的 xx 數字排序
         data.codes.sort((a, b) => {
-          if (!isNaN(a) && !isNaN(b)) {
-            return Number(a) - Number(b);
+          const numA = parseInt(a.replace(/第(\d+)台/, "$1"), 10);
+          const numB = parseInt(b.replace(/第(\d+)台/, "$1"), 10);
+          if (!isNaN(numA) && !isNaN(numB)) {
+            return numA - numB;
           }
           return a.localeCompare(b, 'zh-Hant');
         });
