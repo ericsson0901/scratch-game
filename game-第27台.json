@@ -1,0 +1,48 @@
+{
+  "numbers": [
+    1,
+    11,
+    13,
+    2,
+    10,
+    6,
+    3,
+    16,
+    14,
+    4,
+    8,
+    9,
+    7,
+    12,
+    5,
+    15
+  ],
+  "scratched": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "config": {
+    "gridSize": 16,
+    "winNumbers": [
+      5
+    ],
+    "progressThresholds": {
+      "5": 10
+    },
+    "managerPassword": "112"
+  }
+}

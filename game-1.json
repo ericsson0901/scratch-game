@@ -10,7 +10,9 @@
     "winNumbers": [
       1
     ],
-    "progressThreshold": 1,
+    "progressThresholds": {
+      "1": 0
+    },
     "managerPassword": "1"
   }
 }
