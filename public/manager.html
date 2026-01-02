@@ -90,7 +90,6 @@
       </div>
     </div>
   </div>
-
 <script>
 let managerToken = null;
 let currentCode = null;
@@ -106,7 +105,8 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   });
   const data = await res.json();
   if(data.token){
-    managerToken = data.token;
+    // 修正：直接存完整 token (包含 Bearer)
+    managerToken = "Bearer " + data.token;
     currentCode = data.code;
     document.getElementById('gameCode').textContent = currentCode;
     document.getElementById('loginCard').style.display='none';
@@ -121,7 +121,7 @@ async function updateGrid(){
   const gridSize = parseInt(document.getElementById('gridSize').value);
   const res = await fetch('/api/manager/config/grid',{
     method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+managerToken},
+    headers:{'Content-Type':'application/json','Authorization': managerToken},
     body:JSON.stringify({code:currentCode,gridSize})
   });
   const result = await res.json();
@@ -174,7 +174,7 @@ async function updateWin(){
   }
   const res = await fetch('/api/manager/config/win',{
     method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+managerToken},
+    headers:{'Content-Type':'application/json','Authorization': managerToken},
     body:JSON.stringify({code:currentCode,winNumbers})
   });
   const result = await res.json();
@@ -185,7 +185,7 @@ async function updateWin(){
 async function resetGame(){
   const res = await fetch('/api/manager/reset',{
     method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+managerToken},
+    headers:{'Content-Type':'application/json','Authorization': managerToken},
     body:JSON.stringify({code:currentCode})
   });
   const result = await res.json();
