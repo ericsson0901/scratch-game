@@ -105,7 +105,6 @@ function initGame(code, config = defaultConfig) {
   };
   saveGame(code);
 }
-
 // === Admin 與 Manager 登入 API ===
 app.post('/api/admin', (req, res) => {
   const { password } = req.body;
@@ -252,6 +251,7 @@ app.post('/api/game/scratch', (req, res) => {
 
   res.json({ number });
 });
+
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const auth = req.headers.authorization;
@@ -295,7 +295,6 @@ app.post('/api/manager/config/win', (req, res) => {
   saveGame(code);
   res.json({ message: "遊戲 " + code + " 中獎號碼已更新為 " + games[code].config.winNumbers.join(', ') });
 });
-
 // === Admin 建立遊戲 ===
 app.post('/api/admin/create-game', (req, res) => {
   const auth = req.headers.authorization;
