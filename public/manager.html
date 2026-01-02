@@ -98,34 +98,44 @@ let currentCode = null;
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const code = document.getElementById('code').value.trim();
   const password = document.getElementById('password').value;
-  const res = await fetch('/api/manager/login', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({code,password})
-  });
-  const data = await res.json();
-  if(data.token){
-    // 修正：直接存完整 token (包含 Bearer)
-    managerToken = "Bearer " + data.token;
-    currentCode = data.code;
-    document.getElementById('gameCode').textContent = currentCode;
-    document.getElementById('loginCard').style.display='none';
-    document.getElementById('managerPanel').style.display='block';
-  }else{
-    alert(data.error || '登入失敗');
+  try {
+    const res = await fetch('/api/manager/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code,password})
+    });
+    const data = await res.json();
+    if(data.token){
+      managerToken = "Bearer " + data.token;
+      currentCode = data.code;
+      document.getElementById('gameCode').textContent = currentCode;
+      document.getElementById('loginCard').style.display='none';
+      document.getElementById('managerPanel').style.display='block';
+    }else{
+      alert(data.error || '登入失敗');
+    }
+  } catch (err) {
+    console.error("Login error:", err);
+    alert("登入失敗，請檢查伺服器");
   }
 });
 
 // 修改格子數
 async function updateGrid(){
   const gridSize = parseInt(document.getElementById('gridSize').value);
-  const res = await fetch('/api/manager/config/grid',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization': managerToken},
-    body:JSON.stringify({code:currentCode,gridSize})
-  });
-  const result = await res.json();
-  alert(result.message || result.error || '格子數已更新');
+  try {
+    const res = await fetch('/api/manager/config/grid',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization': managerToken},
+      body:JSON.stringify({code:currentCode,gridSize})
+    });
+    const result = await res.json();
+    console.log("updateGrid response:", result);
+    alert(result.message || result.error || '格子數已更新');
+  } catch (err) {
+    console.error("updateGrid error:", err);
+    alert("更新格子數失敗");
+  }
 }
 
 // ===== 標籤式輸入 (新增/刪除中獎號碼) =====
@@ -166,30 +176,42 @@ function renderTags() {
   });
 }
 
-// 修改中獎號碼 (送出 winNumbers 陣列)
+// 修改中獎號碼
 async function updateWin(){
   if(winNumbers.length === 0){
     alert('請輸入至少一個號碼');
     return;
   }
-  const res = await fetch('/api/manager/config/win',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization': managerToken},
-    body:JSON.stringify({code:currentCode,winNumbers})
-  });
-  const result = await res.json();
-  alert(result.message || result.error || '中獎號碼已更新');
+  try {
+    const res = await fetch('/api/manager/config/win',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization': managerToken},
+      body:JSON.stringify({code:currentCode,winNumbers})
+    });
+    const result = await res.json();
+    console.log("updateWin response:", result);
+    alert(result.message || result.error || '中獎號碼已更新');
+  } catch (err) {
+    console.error("updateWin error:", err);
+    alert("更新中獎號碼失敗");
+  }
 }
 
 // 重製遊戲
 async function resetGame(){
-  const res = await fetch('/api/manager/reset',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization': managerToken},
-    body:JSON.stringify({code:currentCode})
-  });
-  const result = await res.json();
-  alert(result.message || result.error || '遊戲已重製');
+  try {
+    const res = await fetch('/api/manager/reset',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization': managerToken},
+      body:JSON.stringify({code:currentCode})
+    });
+    const result = await res.json();
+    console.log("resetGame response:", result);
+    alert(result.message || result.error || '遊戲已重製');
+  } catch (err) {
+    console.error("resetGame error:", err);
+    alert("重製遊戲失敗");
+  }
 }
 </script>
 </body>
