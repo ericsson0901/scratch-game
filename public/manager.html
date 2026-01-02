@@ -106,7 +106,8 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
     });
     const data = await res.json();
     if(data.token){
-      managerToken = "Bearer " + data.token;
+      // 使用 encodeURIComponent 確保 token 可用於 header
+      managerToken = "Bearer " + encodeURIComponent(data.token);
       currentCode = data.code;
       document.getElementById('gameCode').textContent = currentCode;
       document.getElementById('loginCard').style.display='none';

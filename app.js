@@ -256,7 +256,7 @@ app.post('/api/game/scratch', (req, res) => {
 app.post('/api/manager/reset', (req, res) => {
   const auth = req.headers.authorization;
   const { code } = req.body;
-  if (!auth || auth !== "Bearer manager-token-" + code) {
+  if (!auth || decodeURIComponent(auth) !== "Bearer manager-token-" + code) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   loadGame(code);
@@ -270,7 +270,7 @@ app.post('/api/manager/reset', (req, res) => {
 app.post('/api/manager/config/grid', (req, res) => {
   const auth = req.headers.authorization;
   const { code, gridSize } = req.body;
-  if (!auth || auth !== "Bearer manager-token-" + code) {
+  if (!auth || decodeURIComponent(auth) !== "Bearer manager-token-" + code) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   loadGame(code);
@@ -285,7 +285,7 @@ app.post('/api/manager/config/grid', (req, res) => {
 app.post('/api/manager/config/win', (req, res) => {
   const auth = req.headers.authorization;
   const { code, winNumbers } = req.body;
-  if (!auth || auth !== "Bearer manager-token-" + code) {
+  if (!auth || decodeURIComponent(auth) !== "Bearer manager-token-" + code) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   loadGame(code);
