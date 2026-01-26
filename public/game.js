@@ -95,3 +95,40 @@ function updateStats(scratchedCount) {
   document.getElementById('scratchedCount').innerText = scratchedCount;
   document.getElementById('remainingCount').innerText = totalCells - scratchedCount;
 }
+document.getElementById('refreshFullDistributionBtn').addEventListener('click', async () => {
+  const code = document.getElementById('fullDistributionGameCode').value;
+  const res = await fetch('/api/admin/full-distribution?code=' + encodeURIComponent(code), {
+    headers: { 'Authorization': 'Bearer ' + adminToken }
+  });
+  if (res.ok) {
+    const data = await res.json();
+    const grid = document.getElementById('distributionGrid');
+    grid.innerHTML = '';
+
+    // 動態設定 grid 列數
+    const root = Math.sqrt(data.gridSize);
+    if (Number.isInteger(root)) {
+      grid.style.gridTemplateColumns = `repeat(${root}, 60px)`;
+    } else {
+      grid.style.gridTemplateColumns = `repeat(6, 60px)`; // 預設 6 列
+    }
+
+    // 建立格子顯示號碼
+    data.numbers.forEach(num => {
+      const cell = document.createElement('div');
+      cell.textContent = num;
+      cell.style.width = '60px';
+      cell.style.height = '60px';
+      cell.style.display = 'flex';
+      cell.style.justifyContent = 'center';
+      cell.style.alignItems = 'center';
+      cell.style.border = '1px solid #444';
+      cell.style.borderRadius = '5px';
+      cell.style.background = '#eee';
+      cell.style.color = '#000';
+      grid.appendChild(cell);
+    });
+  } else {
+    alert('查無此遊戲代碼');
+  }
+});

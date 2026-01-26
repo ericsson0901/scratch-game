@@ -29,7 +29,7 @@ let games = {};
 
 // === 每個代碼獨立存檔 ===
 function getGameFilePath(code) {
-  return path.join("/data", "game-" + code + ".json"); // 改成 Persistent Disk
+  return path.join("/data", "game-" + code + ".json"); // Persistent Disk
 }
 
 function saveGame(code) {
@@ -45,6 +45,7 @@ function loadGame(code) {
     try {
       games[code] = JSON.parse(fs.readFileSync(file, 'utf-8'));
       const config = games[code].config;
+      // 舊版欄位轉換
       if (typeof config?.winNumber === 'number') {
         config.winNumbers = [config.winNumber];
         delete config.winNumber;
@@ -91,6 +92,7 @@ function loadPasswords() {
     if (data.adminPassword) adminPassword = data.adminPassword;
   }
 }
+
 // 初始化遊戲
 function initGame(code, config = defaultConfig) {
   let arr = Array.from({ length: config.gridSize }, (_, i) => i + 1);
@@ -167,7 +169,8 @@ setInterval(() => {
     }
   }
 }, 60000);
-// 玩家登入
+
+// === 玩家登入 ===
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
   if (password === globalPlayerPassword) {
@@ -176,13 +179,13 @@ app.post('/api/login', (req, res) => {
   res.status(401).json({ error: 'Invalid player password' });
 });
 
-// 玩家查詢遊戲代碼清單
+// === 玩家查詢遊戲代碼清單 ===
 app.get('/api/game-list', (req, res) => {
   const codes = Object.keys(games).filter(code => !code.startsWith('__'));
   res.json({ codes });
 });
 
-// 玩家查詢遊戲狀態
+// === 玩家查詢遊戲狀態 ===
 app.get('/api/game/state', (req, res) => {
   const { code } = req.query;
   loadGame(code);
@@ -197,8 +200,7 @@ app.get('/api/game/state', (req, res) => {
     revealed: game.scratched.map(n => n !== null)
   });
 });
-
-// 玩家刮格子
+// === 玩家刮格子 ===
 app.post('/api/game/scratch', (req, res) => {
   const { code, index } = req.body;
   loadGame(code);
@@ -295,6 +297,7 @@ app.post('/api/manager/config/win', (req, res) => {
   saveGame(code);
   res.json({ message: "遊戲 " + code + " 中獎號碼已更新為 " + games[code].config.winNumbers.join(', ') });
 });
+
 // === Admin 建立遊戲 ===
 app.post('/api/admin/create-game', (req, res) => {
   const auth = req.headers.authorization;
@@ -363,7 +366,7 @@ app.post('/api/admin/config', (req, res) => {
   res.json({ success: true, config: games[code].config });
 });
 
-// Admin 查詢所有遊戲代碼清單
+// === Admin 查詢所有遊戲代碼清單 ===
 app.get('/api/admin/game-list', (req, res) => {
   const auth = req.headers.authorization;
   if (!auth || auth !== 'Bearer admin-token') {
@@ -372,6 +375,25 @@ app.get('/api/admin/game-list', (req, res) => {
 
   const codes = Object.keys(games).filter(code => !code.startsWith('__'));
   res.json({ codes });
+});
+
+// === Admin 查看遊戲完整號碼分布 ===
+app.get('/api/admin/full-distribution', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || auth !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { code } = req.query;
+  loadGame(code);
+  if (!games[code]) return res.status(404).json({ error: 'Game not found' });
+
+  const game = games[code];
+  res.json({
+    code,
+    gridSize: game.config.gridSize,
+    numbers: game.numbers
+  });
 });
 
 // === Admin 查看遊戲進度 ===
@@ -396,8 +418,7 @@ app.get('/api/admin/progress', (req, res) => {
     thresholdReached: scratchedCount >= Math.min(...Object.values(game.config.progressThresholds || { 0: 0 }))
   });
 });
-
-// 修改管理員密碼（持久化）
+// === Admin 修改管理員密碼（持久化） ===
 app.post('/api/admin/change-password', (req, res) => {
   const auth = req.headers.authorization;
   if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
@@ -411,7 +432,7 @@ app.post('/api/admin/change-password', (req, res) => {
   res.json({ message: "管理員密碼已更新" });
 });
 
-// 修改全域玩家密碼（持久化）
+// === Admin 修改全域玩家密碼（持久化） ===
 app.post('/api/admin/change-global-password', (req, res) => {
   const auth = req.headers.authorization;
   if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
@@ -425,7 +446,7 @@ app.post('/api/admin/change-global-password', (req, res) => {
   res.json({ message: "全域玩家密碼已更新" });
 });
 
-// 啟動伺服器
+// === 啟動伺服器 ===
 app.listen(PORT, async () => {
   console.log("Server running on port " + PORT);
   loadAllGames();
