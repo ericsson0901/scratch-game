@@ -392,9 +392,11 @@ app.get('/api/admin/full-distribution', (req, res) => {
   res.json({
     code,
     gridSize: game.config.gridSize,
-    numbers: game.numbers
+    numbers: game.numbers,
+    winNumbers: game.config.winNumbers || []   // 👉 新增這行
   });
 });
+
 
 // === Admin 查看遊戲進度 ===
 app.get('/api/admin/progress', (req, res) => {
