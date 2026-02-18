@@ -167,7 +167,7 @@
   <div id="game" style="display:none;">
     <h2>中獎號碼：<span id="winning"></span></h2>
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
-    <!-- 新增顯示剩下未刮中的號碼 -->
+    <!-- 顯示剩下未刮中的號碼 -->
     <p>剩下未刮中的號碼：<span id="remainingWinning"></span></p>
     <div class="grid" id="grid"></div>
   </div>
@@ -227,38 +227,37 @@
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // 判斷號碼區域是否已經完全刮開
-        const hiddenRect = span.getBoundingClientRect();
-        const hiddenPixels = ctx.getImageData(
-          hiddenRect.left - rect.left,
-          hiddenRect.top - rect.top,
-          hiddenRect.width,
-          hiddenRect.height
-        ).data;
+        if (!cell.dataset.revealed) {
+          const hiddenRect = span.getBoundingClientRect();
+          const hiddenPixels = ctx.getImageData(
+            hiddenRect.left - rect.left,
+            hiddenRect.top - rect.top,
+            hiddenRect.width,
+            hiddenRect.height
+          ).data;
 
-        let transparent = 0;
-        for (let i = 3; i < hiddenPixels.length; i += 4) {
-          if (hiddenPixels[i] === 0) transparent++;
-        }
-        const ratio = transparent / (hiddenPixels.length / 4);
+          let transparent = 0;
+          for (let i = 3; i < hiddenPixels.length; i += 4) {
+            if (hiddenPixels[i] === 0) transparent++;
+          }
+          const ratio = transparent / (hiddenPixels.length / 4);
 
-        if (ratio > 0.9 && !cell.dataset.revealed) {
-          cell.dataset.revealed = "true";
-
-          setTimeout(() => {
-            cell.classList.remove('enlarged');
-            cell.classList.add('revealed');
-            if (cell.dataset.win === "true" && !cell.dataset.alerted) {
-              alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
-              cell.dataset.alerted = "true";
-              cell.classList.add('win');
-            }
-            enablePageScroll();
-            document.getElementById('lockOverlay').style.display = 'none';
-
-            canvas.remove();
-            updateRemainingWinningNumbers(); // 更新剩下未刮中的號碼
-          }, 1500);
+          if (ratio > 0.9) {
+            cell.dataset.revealed = "true";
+            setTimeout(() => {
+              cell.classList.remove('enlarged');
+              cell.classList.add('revealed');
+              if (cell.dataset.win === "true" && !cell.dataset.alerted) {
+                alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
+                cell.dataset.alerted = "true";
+                cell.classList.add('win');
+              }
+              enablePageScroll();
+              document.getElementById('lockOverlay').style.display = 'none';
+              canvas.remove();
+              updateRemainingWinningNumbers();
+            }, 1500);
+          }
         }
       }
 
@@ -267,13 +266,10 @@
       canvas.addEventListener('mousemove', scratch);
     }
 
-    // 新增：點擊格子放大前跳出確認
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
         const confirmChoice = confirm("是否選擇這個格子進行刮刮樂？");
-        if (!confirmChoice) {
-          return; // 玩家取消，不執行放大
-        }
+        if (!confirmChoice) return;
 
         const placeholder = document.createElement('div');
         placeholder.className = 'cell placeholder';
@@ -308,6 +304,15 @@
         }
       }
     }
+
+    // 修正：保證 DOM 載入完成後再綁定「聯絡我們」按鈕事件
+    window.addEventListener('DOMContentLoaded', () => {
+      const closeBtn = document.getElementById('closeAdBtn');
+      closeBtn.addEventListener('click', () => {
+        document.getElementById('adOverlay').style.display = 'none';
+        document.getElementById('login').style.display = 'block';
+      });
+    });
 
     // 遮罩阻止點擊
     const lockOverlay = document.getElementById('lockOverlay');
