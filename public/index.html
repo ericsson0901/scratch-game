@@ -34,18 +34,18 @@
       cursor: pointer;
       color: #fff;
     }
-.grid {
+   .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  grid-template-columns: repeat(5, 60px); /* 每排固定 5 格 */
   gap: 5px;
   margin-top: 20px;
-  max-height: 80vh;
-  overflow-y: auto;
+  max-height: 80vh;       /* 限制高度 */
+  overflow-y: auto;       /* 超出範圍時可上下捲動 */
 }
 
 .cell {
-  aspect-ratio: 1 / 1;   /* 保持正方形 */
-  width: 100%;           /* 讓它跟著 grid 分配寬度 */
+  width: 60px;
+  height: 60px;
   background: #ccc;
   display: flex;
   justify-content: center;
