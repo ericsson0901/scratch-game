@@ -1,5 +1,3 @@
-<!DOCTYPE html>
-<html lang="zh">
 <head>
   <meta charset="UTF-8">
   <title>參與促銷活動</title>
@@ -38,12 +36,15 @@
     }
     .grid {
       display: grid;
+      grid-template-columns: repeat(6, 1fr); /* 每排固定 6 格 */
       gap: 5px;
       margin-top: 20px;
+      max-height: 80vh;        /* 限制高度 */
+      overflow-y: auto;        /* 超出範圍時可上下捲動 */
     }
     .cell {
-      width: 60px;
-      height: 60px;
+      width: 100%;             /* 自動依欄寬縮放 */
+      aspect-ratio: 1 / 1;     /* 保持正方形 */
       background: #ccc;
       display: flex;
       justify-content: center;
@@ -63,6 +64,7 @@
       transform: translate(-50%, -50%);
       width: 80vw;
       height: 80vw;
+      max-height: 80vh; /* 避免超過螢幕高度 */
       background: #fff;
       z-index: 1001; /* 提高層級，蓋在遮罩之上 */
     }
@@ -144,7 +146,6 @@
   <img src="ad.png" alt="系統家具設計廣告">
   <button id="closeAdBtn">聯絡我們</button>
 </div>
-
   <!-- 新增透明遮罩 -->
   <div id="lockOverlay"></div>
   <!-- 登入區塊 -->
@@ -167,8 +168,7 @@
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
     <div class="grid" id="grid"></div>
   </div>
-  <script src="game.js"></script>
-  <script>
+  <script src="game.js"></script>  <script>
     // === 固定玩家 UID ===
     if (!localStorage.getItem('playerId')) {
       localStorage.setItem('playerId', crypto.randomUUID());
