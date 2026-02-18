@@ -34,27 +34,16 @@
       cursor: pointer;
       color: #fff;
     }
-   ..grid {
+.grid {
   display: grid;
-  grid-template-columns: repeat(5, 60px); /* 每排固定 6 格 */
+  grid-template-columns: repeat(6, 1fr); /* 每排固定 6 格，平均分配寬度 */
   gap: 5px;
   margin-top: 20px;
   max-height: 80vh;
   overflow-y: auto;
 }
 .cell {
-  width: 60px;
-  height: 60px;
-  background: #ccc;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 20px;
-  cursor: pointer;
-  border-radius: 5px;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
+  aspect-ratio: 1 / 1; /* 保持正方形 */
 }
     /* 放大到正中間，佔滿螢幕 */
     .cell.enlarged {
