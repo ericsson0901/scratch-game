@@ -181,114 +181,11 @@
 
     // 全域變數保存中獎號碼
     let winningNumbers = [];
-    // 刮刮樂效果初始化
-    function initScratchCanvas(cell, number) {
-      const canvas = document.createElement('canvas');
-      canvas.className = 'scratchCanvas';
-      canvas.width = cell.offsetWidth;
-      canvas.height = cell.offsetHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#C0C0C0';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      const span = document.createElement('span');
-      span.className = 'hiddenNumber';
-      span.textContent = number;
-
-      cell.appendChild(span);
-      cell.appendChild(canvas);
-
-      function scratch(e) {
-        if (e.cancelable) e.preventDefault();
-        const rect = canvas.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-        ctx.globalCompositeOperation = 'destination-out';
-
-        const radius = canvas.width * 0.05;
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 判斷號碼區域是否已經完全刮開
-        const hiddenRect = span.getBoundingClientRect();
-        const hiddenPixels = ctx.getImageData(
-          hiddenRect.left - rect.left,
-          hiddenRect.top - rect.top,
-          hiddenRect.width,
-          hiddenRect.height
-        ).data;
-
-        let transparent = 0;
-        for (let i = 3; i < hiddenPixels.length; i += 4) {
-          if (hiddenPixels[i] === 0) transparent++;
-        }
-        const ratio = transparent / (hiddenPixels.length / 4);
-
-        if (ratio > 0.9 && !cell.dataset.revealed) {
-          cell.dataset.revealed = "true";
-
-          setTimeout(() => {
-            cell.classList.remove('enlarged');
-            cell.classList.add('revealed');
-            if (cell.dataset.win === "true" && !cell.dataset.alerted) {
-              alert('🎉 恭喜中獎！你刮到了號碼 ' + number);
-              cell.dataset.alerted = "true";
-              cell.classList.add('win');
-            }
-            enablePageScroll();
-            document.getElementById('lockOverlay').style.display = 'none';
-
-            canvas.remove();
-            updateRemainingWinningNumbers();
-          }, 1500);
-        }
-      }
-
-      canvas.addEventListener('touchstart', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
-      canvas.addEventListener('touchmove', scratch, { passive: false });
-      canvas.addEventListener('mousemove', scratch);
-    }
-
-    function createScratchCell(cell, number, isWin, alreadyRevealed) {
-      if (!alreadyRevealed) {
-        const confirmChoice = confirm("是否選擇這個格子進行刮刮樂？");
-        if (!confirmChoice) {
-          return;
-        }
-
-        const placeholder = document.createElement('div');
-        placeholder.className = 'cell placeholder';
-        cell.parentNode.insertBefore(placeholder, cell);
-
-        cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-        setTimeout(() => {
-          cell.classList.add('enlarged');
-          disablePageScroll();
-          document.getElementById('lockOverlay').style.display = 'block';
-        }, 300);
-
-        cell.addEventListener('transitionend', () => {
-          if (!cell.classList.contains('enlarged') && placeholder.parentNode) {
-            placeholder.remove();
-          }
-        });
-
-        initScratchCanvas(cell, number);
-        if (isWin) cell.dataset.win = "true";
-      } else {
-        const span = document.createElement('span');
-        span.className = 'hiddenNumber';
-        span.textContent = number;
-        cell.appendChild(span);
-
-        cell.classList.add('revealed');
-        cell.dataset.revealed = "true";
-        if (isWin) {
-          cell.classList.add('win');
-          cell.dataset.win = "true";
-        }
-      }
+    // 顯示中獎號碼並保存到全域變數
+    function showWinningNumbers(numbers) {
+      winningNumbers = numbers; // 保存中獎號碼陣列
+      document.getElementById('winning').textContent = numbers.join(', ');
+      updateRemainingWinningNumbers(); // 初始化顯示剩下未刮出的號碼
     }
 
     // 更新剩下未刮出的中獎號碼
@@ -302,8 +199,14 @@
 
     // 遮罩阻止點擊
     const lockOverlay = document.getElementById('lockOverlay');
-    lockOverlay.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
-    lockOverlay.addEventListener('touchstart', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
+    lockOverlay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
+    lockOverlay.addEventListener('touchstart', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
   </script>
 </body>
 </html>
