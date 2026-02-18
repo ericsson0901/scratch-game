@@ -34,29 +34,29 @@
       cursor: pointer;
       color: #fff;
     }
-   .grid {
-  display: grid;
-  grid-template-columns: repeat(6, 60px); /* 每排固定 6 格 */
-  gap: 5px;
-  margin-top: 20px;
-  max-height: 80vh;       /* 限制高度 */
-  overflow-y: auto;       /* 超出範圍時可上下捲動 */
-}
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(6, 60px); /* 每排固定 6 格 */
+      gap: 5px;
+      margin-top: 20px;
+      max-height: 80vh;       /* 限制高度 */
+      overflow-y: auto;       /* 超出範圍時可上下捲動 */
+    }
 
-.cell {
-  width: 60px;
-  height: 60px;
-  background: #ccc;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 20px;
-  cursor: pointer;
-  border-radius: 5px;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
+    .cell {
+      width: 60px;
+      height: 60px;
+      background: #ccc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+      cursor: pointer;
+      border-radius: 5px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
     /* 放大到正中間，佔滿螢幕 */
     .cell.enlarged {
       position: fixed;
@@ -167,14 +167,17 @@
   <div id="game" style="display:none;">
     <h2>中獎號碼：<span id="winning"></span></h2>
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
+    <p>剩下未刮出的中獎號碼：<span id="remainingWinning"></span></p>
     <div class="grid" id="grid"></div>
   </div>
-  <script src="game.js"></script>  <script>
-    // === 固定玩家 UID ===
-    if (!localStorage.getItem('playerId')) {
-      localStorage.setItem('playerId', crypto.randomUUID());
-    }
-    const playerId = localStorage.getItem('playerId');
+<script src="game.js"></script>
+<script>
+  // === 固定玩家 UID ===
+  if (!localStorage.getItem('playerId')) {
+    localStorage.setItem('playerId', crypto.randomUUID());
+  }
+  const playerId = localStorage.getItem('playerId');
+
     // 全域禁止捲動控制
     function disablePageScroll() {
       document.body.classList.add('noscroll');
@@ -342,6 +345,9 @@
 
             // 👉 修改：刮完後移除 canvas，避免阻止頁面捲動
             canvas.remove();
+
+            // 更新剩下未刮出的中獎號碼
+            updateRemainingWinningNumbers();
           }, 1500);
         }
       }
@@ -350,8 +356,15 @@
       canvas.addEventListener('touchmove', scratch, { passive: false });
       canvas.addEventListener('mousemove', scratch);
     }
+
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
+        // 👉 新增確認訊息
+        const confirmChoice = confirm("是否選擇這個格子進行刮刮樂？");
+        if (!confirmChoice) {
+          return; // 玩家取消，不執行放大
+        }
+
         const placeholder = document.createElement('div');
         placeholder.className = 'cell placeholder';
         cell.parentNode.insertBefore(placeholder, cell);
@@ -376,7 +389,7 @@
         initScratchCanvas(cell, number);
         if (isWin) cell.dataset.win = "true";
       } else {
-        // 👉 已刮開的格子只顯示號碼，不建立 canvas
+        // 已刮開的格子只顯示號碼
         const span = document.createElement('span');
         span.className = 'hiddenNumber';
         span.textContent = number;
@@ -389,6 +402,16 @@
           cell.dataset.win = "true";
         }
       }
+    }
+
+    // 👉 新增函式：更新剩下未刮出的中獎號碼
+    function updateRemainingWinningNumbers() {
+      const allWinningNumbers = document.getElementById('winning').textContent.split(',').map(s => s.trim());
+      const revealedCells = document.querySelectorAll('.cell.revealed.win .hiddenNumber');
+      const revealedNumbers = Array.from(revealedCells).map(span => span.textContent);
+
+      const remainingNumbers = allWinningNumbers.filter(num => !revealedNumbers.includes(num));
+      document.getElementById('remainingWinning').textContent = remainingNumbers.join(', ');
     }
 
     // 遮罩阻止點擊
