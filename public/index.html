@@ -1,3 +1,5 @@
+<!DOCTYPE html>
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
   <title>參與促銷活動</title>
@@ -36,13 +38,9 @@
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(6, 60px); /* 每排固定 6 格 */
       gap: 5px;
       margin-top: 20px;
-      max-height: 80vh;       /* 限制高度 */
-      overflow-y: auto;       /* 超出範圍時可上下捲動 */
     }
-
     .cell {
       width: 60px;
       height: 60px;
@@ -65,7 +63,6 @@
       transform: translate(-50%, -50%);
       width: 80vw;
       height: 80vw;
-      max-height: 80vh; /* 避免超過螢幕高度 */
       background: #fff;
       z-index: 1001; /* 提高層級，蓋在遮罩之上 */
     }
@@ -147,6 +144,7 @@
   <img src="ad.png" alt="系統家具設計廣告">
   <button id="closeAdBtn">聯絡我們</button>
 </div>
+
   <!-- 新增透明遮罩 -->
   <div id="lockOverlay"></div>
   <!-- 登入區塊 -->
@@ -167,10 +165,8 @@
   <div id="game" style="display:none;">
     <h2>中獎號碼：<span id="winning"></span></h2>
     <p>已刮出：<span id="scratchedCount">0</span>　剩下：<span id="remainingCount">0</span></p>
-    <p>剩下未刮出的中獎號碼：<span id="remainingWinning"></span></p>
     <div class="grid" id="grid"></div>
   </div>
-
   <script src="game.js"></script>
   <script>
     // === 固定玩家 UID ===
@@ -178,9 +174,19 @@
       localStorage.setItem('playerId', crypto.randomUUID());
     }
     const playerId = localStorage.getItem('playerId');
-
-    // 全域變數保存中獎號碼
-    let winningNumbers = [];
+    // 全域禁止捲動控制
+    function disablePageScroll() {
+      document.body.classList.add('noscroll');
+      window._preventScroll = (e) => { if (e.cancelable) e.preventDefault(); };
+      window.addEventListener('touchmove', window._preventScroll, { passive: false });
+    }
+    function enablePageScroll() {
+      document.body.classList.remove('noscroll');
+      if (window._preventScroll) {
+        window.removeEventListener('touchmove', window._preventScroll);
+        window._preventScroll = null;
+      }
+    }
 
     // 點擊廣告後顯示登入區塊
     document.getElementById('closeAdBtn').addEventListener('click', () => {
@@ -188,7 +194,7 @@
       document.getElementById('login').style.display = 'block';
     });
 
-    // 登入驗證
+    // 登入驗證全域密碼
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const password = document.getElementById('password').value;
       const res = await fetch('/api/login', {
@@ -214,6 +220,16 @@
         const ul = document.getElementById('gameListUl');
         ul.innerHTML = '';
 
+        // 👉 修改排序邏輯：依據「第xx台」中的 xx 數字排序
+        data.codes.sort((a, b) => {
+          const numA = parseInt(a.replace(/第(\d+)台/, "$1"), 10);
+          const numB = parseInt(b.replace(/第(\d+)台/, "$1"), 10);
+          if (!isNaN(numA) && !isNaN(numB)) {
+            return numA - numB;
+          }
+          return a.localeCompare(b, 'zh-Hant');
+        });
+
         data.codes.forEach(code => {
           const li = document.createElement('li');
           const btn = document.createElement('button');
@@ -227,7 +243,19 @@
       }
     }
 
-    // 開始遊戲
+    document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
+    // 啟動心跳
+    function startHeartbeat(gameCode, playerId) {
+      setInterval(() => {
+        fetch('/api/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: gameCode, playerId })
+        }).catch(err => console.error("心跳失敗", err));
+      }, 30000); // 每 30 秒送一次
+    }
+
+    // 玩家進入遊戲代碼
     function startSelectedGame(gameCode) {
       fetch('/api/join-game', {
         method: 'POST',
@@ -240,6 +268,7 @@
           if (typeof startGame === 'function') {
             startGame(gameCode);
           }
+          startHeartbeat(gameCode, playerId);
         } else {
           res.json().then(err => {
             alert(err.error || "無法進入遊戲");
@@ -247,22 +276,10 @@
         }
       });
     }
-    // 顯示中獎號碼並保存到全域變數
+
     function showWinningNumbers(numbers) {
-      winningNumbers = numbers; // 保存中獎號碼陣列
       document.getElementById('winning').textContent = numbers.join(', ');
-      updateRemainingWinningNumbers(); // 初始化顯示剩下未刮出的號碼
     }
-
-    // 更新剩下未刮出的中獎號碼
-    function updateRemainingWinningNumbers() {
-      const revealedCells = document.querySelectorAll('.cell.revealed.win .hiddenNumber');
-      const revealedNumbers = Array.from(revealedCells).map(span => span.textContent);
-
-      const remainingNumbers = winningNumbers.filter(num => !revealedNumbers.includes(num));
-      document.getElementById('remainingWinning').textContent = remainingNumbers.join(', ');
-    }
-
     // 刮刮樂效果初始化
     function initScratchCanvas(cell, number) {
       const canvas = document.createElement('canvas');
@@ -281,7 +298,7 @@
       cell.appendChild(canvas);
 
       function scratch(e) {
-        if (e.cancelable) e.preventDefault();
+        if (e.cancelable) e.preventDefault(); // 阻止 iOS 預設捲動
         const rect = canvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
@@ -307,6 +324,7 @@
         }
         const ratio = transparent / (hiddenPixels.length / 4);
 
+        // 如果號碼區域透明比例超過 90%，視為完全刮出
         if (ratio > 0.9 && !cell.dataset.revealed) {
           cell.dataset.revealed = "true";
 
@@ -321,8 +339,8 @@
             enablePageScroll();
             document.getElementById('lockOverlay').style.display = 'none';
 
+            // 👉 修改：刮完後移除 canvas，避免阻止頁面捲動
             canvas.remove();
-            updateRemainingWinningNumbers();
           }, 1500);
         }
       }
@@ -331,23 +349,21 @@
       canvas.addEventListener('touchmove', scratch, { passive: false });
       canvas.addEventListener('mousemove', scratch);
     }
-
     function createScratchCell(cell, number, isWin, alreadyRevealed) {
       if (!alreadyRevealed) {
-        const confirmChoice = confirm("是否選擇這個格子進行刮刮樂？");
-        if (!confirmChoice) {
-          return;
-        }
-
         const placeholder = document.createElement('div');
         placeholder.className = 'cell placeholder';
         cell.parentNode.insertBefore(placeholder, cell);
 
-        cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        cell.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'center'
+        });
         setTimeout(() => {
           cell.classList.add('enlarged');
           disablePageScroll();
-          document.getElementById('lockOverlay').style.display = 'block';
+          document.getElementById('lockOverlay').style.display = 'block'; // 顯示遮罩
         }, 300);
 
         cell.addEventListener('transitionend', () => {
@@ -359,6 +375,7 @@
         initScratchCanvas(cell, number);
         if (isWin) cell.dataset.win = "true";
       } else {
+        // 👉 已刮開的格子只顯示號碼，不建立 canvas
         const span = document.createElement('span');
         span.className = 'hiddenNumber';
         span.textContent = number;
