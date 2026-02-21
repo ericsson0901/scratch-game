@@ -36,11 +36,12 @@
     }
  .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  grid-template-columns: repeat(5, 60px); /* 固定 5 欄，每欄 60px */
   gap: 5px;
   margin-top: 20px;
   max-height: 80vh;
   overflow-y: auto;
+  justify-content: center; /* 置中顯示 */
 }
 
 .cell {
