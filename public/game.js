@@ -23,13 +23,18 @@ async function loadGame() {
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
 
-    // 動態設定 grid 列數
-    const root = Math.sqrt(state.gridSize);
-    if (Number.isInteger(root)) {
-      grid.style.gridTemplateColumns = `repeat(${root}, auto)`;
-    } else {
-      grid.style.gridTemplateColumns = `repeat(6, auto)`; // 預設 6 列
+    // 🔹 修改：依照螢幕寬度 - 1 格排版，並置中顯示
+    function adjustGridColumns(gridElement, gridSize) {
+      const screenWidth = window.innerWidth;
+      const cellSize = 60;
+      const columns = Math.floor(screenWidth / cellSize) - 1; // 保留一格空間
+      const finalColumns = columns > 0 ? columns : 1;
+
+      gridElement.style.gridTemplateColumns = `repeat(${finalColumns}, ${cellSize}px)`;
+      gridElement.style.justifyContent = 'center'; // 水平置中
     }
+
+    adjustGridColumns(grid, state.gridSize);
 
     // 建立格子
     for (let i = 0; i < state.gridSize; i++) {
@@ -51,6 +56,9 @@ async function loadGame() {
     }
 
     updateStats(state.scratched.filter(n => n !== null).length);
+
+    // 🔹 視窗大小改變時重新計算
+    window.addEventListener('resize', () => adjustGridColumns(grid, state.gridSize));
   } catch (e) {
     alert('載入遊戲失敗，請確認遊戲代碼是否正確');
   }
@@ -95,6 +103,7 @@ function updateStats(scratchedCount) {
   document.getElementById('scratchedCount').innerText = scratchedCount;
   document.getElementById('remainingCount').innerText = totalCells - scratchedCount;
 }
+
 document.getElementById('refreshFullDistributionBtn').addEventListener('click', async () => {
   const code = document.getElementById('fullDistributionGameCode').value;
   const res = await fetch('/api/admin/full-distribution?code=' + encodeURIComponent(code), {
