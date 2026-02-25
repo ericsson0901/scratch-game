@@ -13,7 +13,7 @@
       padding: 0;
     }
     h1 { margin-top: 30px; }
-    input, button {
+    input, button, select {
       margin: 8px;
       padding: 10px;
       border-radius: 6px;
@@ -21,6 +21,7 @@
       font-size: 14px;
     }
     input { width: 200px; }
+    select { width: 220px; }
     button {
       background: #4caf50;
       color: #fff;
@@ -37,7 +38,7 @@
       box-shadow: 0 0 10px rgba(0,0,0,0.5);
     }
     .card h2 { margin-bottom: 15px; }
-    .card input { margin-bottom: 10px; }
+    .card input, .card select { margin-bottom: 10px; }
 
     /* 標籤樣式 */
     #winNumbersTags {
@@ -65,7 +66,7 @@
 <body>
   <h1>場次管理員登入</h1>
   <div class="card" id="loginCard">
-    <input id="code" placeholder="遊戲代碼">
+    <select id="codeSelect"></select>
     <input id="password" type="password" placeholder="場次管理員密碼">
     <button id="loginBtn">登入</button>
   </div>
@@ -94,9 +95,33 @@
 let managerToken = null;
 let currentCode = null;
 
-// 登入：每個遊戲代碼有獨立 manager 密碼
+// 載入遊戲代碼清單
+async function loadGameCodes() {
+  try {
+    const res = await fetch('/api/admin/game-list', {
+      headers: { 'Authorization': 'Bearer admin-token' } // ⚠️ 這裡需要管理員端提供 token
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const select = document.getElementById('codeSelect');
+      select.innerHTML = '';
+      data.codes.forEach(code => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = code;
+        select.appendChild(opt);
+      });
+    } else {
+      alert("無法取得遊戲代碼清單");
+    }
+  } catch (err) {
+    console.error("loadGameCodes error:", err);
+  }
+}
+
+// 登入：使用下拉選單選擇遊戲代碼
 document.getElementById('loginBtn').addEventListener('click', async () => {
-  const code = document.getElementById('code').value.trim();
+  const code = document.getElementById('codeSelect').value;
   const password = document.getElementById('password').value;
   try {
     const res = await fetch('/api/manager/login', {
@@ -106,7 +131,6 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
     });
     const data = await res.json();
     if(data.token){
-      // 使用 encodeURIComponent 確保 token 可用於 header
       managerToken = "Bearer " + encodeURIComponent(data.token);
       currentCode = data.code;
       document.getElementById('gameCode').textContent = currentCode;
@@ -214,6 +238,9 @@ async function resetGame(){
     alert("重製遊戲失敗");
   }
 }
+
+// 頁面載入時先載入遊戲代碼清單
+window.onload = loadGameCodes;
 </script>
 </body>
 </html>
