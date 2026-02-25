@@ -51,7 +51,18 @@ async function loadGame() {
         );
       }
 
-      cell.onclick = () => scratch(i, cell);
+      // 🔹 修改：點擊格子前先跳出確認訊息
+      cell.onclick = () => {
+        if (cell.querySelector('.hiddenNumber')) return; // 已刮過就不再刮
+        const confirmChoice = confirm("是否要選擇這個格子？");
+        if (confirmChoice) {
+          scratch(i, cell); // 按確認才執行刮格子
+        } else {
+          // 按取消 → 不執行，不標記為刮過
+          return;
+        }
+      };
+
       grid.appendChild(cell);
     }
 
