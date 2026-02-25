@@ -248,15 +248,29 @@
   }
 
   document.getElementById('refreshGameListBtn').addEventListener('click', loadGameList);
-
-  // 🔹 返回按鈕事件
+  // 🔹 返回按鈕事件（修改：返回時停止心跳並通知伺服器退出）
   document.getElementById('backToSelectBtn').addEventListener('click', () => {
     document.getElementById('game').style.display = 'none';
     document.getElementById('selectGame').style.display = 'block';
+
+    // 停止心跳
+    if (window._heartbeatTimer) {
+      clearInterval(window._heartbeatTimer);
+      window._heartbeatTimer = null;
+    }
+
+    // 通知伺服器退出遊戲
+    fetch('/api/leave-game', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: window._currentGameCode, playerId })
+    }).catch(err => console.error("退出遊戲失敗", err));
   });
-  // 啟動心跳
+
+  // 啟動心跳（修改：保存計時器 ID）
   function startHeartbeat(gameCode, playerId) {
-    setInterval(() => {
+    window._currentGameCode = gameCode; // 保存目前遊戲代碼
+    window._heartbeatTimer = setInterval(() => {
       fetch('/api/heartbeat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -445,6 +459,19 @@
     document.getElementById('game').style.display = 'none';
     document.getElementById('selectGame').style.display = 'none';
     document.getElementById('login').style.display = 'block';
+
+    // 停止心跳並通知伺服器退出
+    if (window._heartbeatTimer) {
+      clearInterval(window._heartbeatTimer);
+      window._heartbeatTimer = null;
+    }
+    if (window._currentGameCode) {
+      fetch('/api/leave-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: window._currentGameCode, playerId })
+      }).catch(err => console.error("退出遊戲失敗", err));
+    }
   }
 
   ['click', 'mousemove', 'keydown', 'touchstart'].forEach(evt => {

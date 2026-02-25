@@ -160,6 +160,16 @@ app.post('/api/heartbeat', (req, res) => {
   res.status(400).json({ error: '遊戲未鎖定或玩家不符' });
 });
 
+// === 新增：玩家退出遊戲 API ===
+app.post('/api/leave-game', (req, res) => {
+  const { code, playerId } = req.body;
+  if (gameLocks[code] && gameLocks[code].playerId === playerId) {
+    delete gameLocks[code];
+    return res.json({ success: true, message: '玩家已退出遊戲' });
+  }
+  res.status(400).json({ error: '玩家不在遊戲中或代碼錯誤' });
+});
+
 setInterval(() => {
   const now = Date.now();
   for (const code in gameLocks) {
@@ -169,7 +179,6 @@ setInterval(() => {
     }
   }
 }, 60000);
-
 // === 玩家登入 ===
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
@@ -200,6 +209,7 @@ app.get('/api/game/state', (req, res) => {
     revealed: game.scratched.map(n => n !== null)
   });
 });
+
 // === 玩家刮格子 ===
 app.post('/api/game/scratch', (req, res) => {
   const { code, index } = req.body;
@@ -253,7 +263,6 @@ app.post('/api/game/scratch', (req, res) => {
 
   res.json({ number });
 });
-
 // === Manager 重製遊戲 ===
 app.post('/api/manager/reset', (req, res) => {
   const auth = req.headers.authorization;
@@ -397,7 +406,6 @@ app.get('/api/admin/full-distribution', (req, res) => {
   });
 });
 
-
 // === Admin 查看遊戲進度 ===
 app.get('/api/admin/progress', (req, res) => {
   const auth = req.headers.authorization;
@@ -420,6 +428,7 @@ app.get('/api/admin/progress', (req, res) => {
     thresholdReached: scratchedCount >= Math.min(...Object.values(game.config.progressThresholds || { 0: 0 }))
   });
 });
+
 // === Admin 修改管理員密碼（持久化） ===
 app.post('/api/admin/change-password', (req, res) => {
   const auth = req.headers.authorization;
