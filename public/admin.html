@@ -13,7 +13,7 @@
       padding: 0;
     }
     h1 { margin-top: 30px; }
-    input, button {
+    input, button, select {
       margin: 8px;
       padding: 10px;
       border-radius: 6px;
@@ -21,6 +21,7 @@
       font-size: 14px;
     }
     input { width: 200px; }
+    select { width: 220px; }
     button {
       background: #4caf50;
       color: #fff;
@@ -37,7 +38,7 @@
       box-shadow: 0 0 10px rgba(0,0,0,0.5);
     }
     .card h2 { margin-bottom: 15px; }
-    .card input { margin-bottom: 10px; }
+    .card input, .card select { margin-bottom: 10px; }
     #progressBar {
       width: 80%;
       height: 20px;
@@ -108,7 +109,7 @@
   <div class="card" id="config" style="display:none;">
     <h2>修改遊戲設定</h2>
     <form id="configForm">
-      <input type="text" name="code" placeholder="遊戲代碼"><br>
+      <select name="code" id="configGameSelect"></select><br>
       <input type="number" name="gridSize" value="9" placeholder="格子大小"><br>
       <div id="winNumbersContainer">
         <input type="number" id="winNumberInput" placeholder="輸入號碼後按 Enter">
@@ -119,11 +120,10 @@
     </form>
     <p id="status"></p>
   </div>
-
   <!-- 重設遊戲 -->
   <div class="card" id="resetGame" style="display:none;">
     <h2>重設遊戲</h2>
-    <input type="text" id="resetGameCode" placeholder="輸入要重設的遊戲代碼">
+    <select id="resetGameSelect"></select>
     <button id="resetGameBtn">重設遊戲</button>
     <p id="resetStatus"></p>
   </div>
@@ -131,14 +131,15 @@
   <!-- 刪除遊戲 -->
   <div class="card" id="deleteGame" style="display:none;">
     <h2>刪除遊戲</h2>
-    <input type="text" id="deleteGameCode" placeholder="輸入要刪除的遊戲代碼">
+    <select id="deleteGameSelect"></select>
     <button id="deleteGameBtn">刪除遊戲</button>
     <p id="deleteStatus"></p>
   </div>
+
   <!-- 查看進度 -->
   <div class="card" id="progress" style="display:none;">
     <h2>遊戲進度</h2>
-    <input type="text" id="progressGameCode" placeholder="輸入遊戲代碼">
+    <select id="progressGameSelect"></select>
     <button id="refreshProgressBtn">查看進度</button>
     <p>已刮出：<span id="scratchedCountAdmin">0</span></p>
     <p>剩下：<span id="remainingCountAdmin">0</span></p>
@@ -173,7 +174,7 @@
   <!-- 查看完整號碼分布 -->
   <div class="card" id="fullDistribution" style="display:none;">
     <h2>遊戲完整號碼分布</h2>
-    <input type="text" id="fullDistributionGameCode" placeholder="輸入遊戲代碼">
+    <select id="fullDistributionGameSelect"></select>
     <button id="refreshFullDistributionBtn">查看分布</button>
     <div id="distributionGrid" 
          style="display:grid; gap:5px; margin-top:20px; justify-content:center;"></div>
@@ -203,6 +204,9 @@
         document.getElementById('changeAdminPassword').style.display = 'block';
         document.getElementById('changeGlobalPassword').style.display = 'block';
         document.getElementById('fullDistribution').style.display = 'block';
+
+        // 登入後立即載入遊戲代碼清單，填充下拉選單
+        await refreshGameSelects();
       } else {
         alert('管理員密碼錯誤');
       }
@@ -219,11 +223,14 @@
       });
       const data = await res.json();
       document.getElementById('createStatus').textContent = data.message || data.error;
+
+      // 建立新遊戲後更新下拉選單
+      await refreshGameSelects();
     });
 
     // 重設遊戲
     document.getElementById('resetGameBtn').addEventListener('click', async () => {
-      const code = document.getElementById('resetGameCode').value;
+      const code = document.getElementById('resetGameSelect').value;
       const res = await fetch('/api/admin/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
@@ -235,7 +242,7 @@
 
     // 刪除遊戲
     document.getElementById('deleteGameBtn').addEventListener('click', async () => {
-      const code = document.getElementById('deleteGameCode').value;
+      const code = document.getElementById('deleteGameSelect').value;
       const res = await fetch('/api/admin/delete-game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
@@ -243,11 +250,14 @@
       });
       const data = await res.json();
       document.getElementById('deleteStatus').textContent = data.message || data.error;
+
+      // 刪除後更新下拉選單
+      await refreshGameSelects();
     });
 
     // 查看遊戲進度
     document.getElementById('refreshProgressBtn').addEventListener('click', async () => {
-      const code = document.getElementById('progressGameCode').value;
+      const code = document.getElementById('progressGameSelect').value;
       const res = await fetch('/api/admin/progress?code=' + encodeURIComponent(code), {
         headers: { 'Authorization': 'Bearer ' + adminToken }
       });
@@ -264,13 +274,15 @@
       }
     });
 
-    // 更新遊戲代碼清單
-    document.getElementById('refreshGameListBtn').addEventListener('click', async () => {
+    // 更新遊戲代碼清單（同時更新下拉選單）
+    async function refreshGameSelects() {
       const res = await fetch('/api/admin/game-list', {
         headers: { 'Authorization': 'Bearer ' + adminToken }
       });
       if (res.ok) {
         const data = await res.json();
+
+        // 更新清單顯示
         const ul = document.getElementById('gameListUl');
         ul.innerHTML = '';
         data.codes.forEach(code => {
@@ -278,37 +290,31 @@
           li.textContent = code;
           ul.appendChild(li);
         });
+
+        // 更新所有下拉選單
+        const selects = [
+          document.getElementById('configGameSelect'),
+          document.getElementById('resetGameSelect'),
+          document.getElementById('deleteGameSelect'),
+          document.getElementById('progressGameSelect'),
+          document.getElementById('fullDistributionGameSelect')
+        ];
+        selects.forEach(sel => {
+          sel.innerHTML = '';
+          data.codes.forEach(code => {
+            const opt = document.createElement('option');
+            opt.value = code;
+            opt.textContent = code;
+            sel.appendChild(opt);
+          });
+        });
       } else {
         alert('無法取得遊戲清單');
       }
-    });
-    // 修改管理員密碼
-    document.getElementById('changeAdminPasswordBtn').addEventListener('click', async () => {
-      const newPassword = document.getElementById('newAdminPassword').value;
-      const res = await fetch('/api/admin/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
-        body: JSON.stringify({ newPassword })
-      });
-      const data = await res.json();
-      document.getElementById('changeAdminPasswordStatus').textContent = data.message || data.error;
-    });
-
-    // 修改全域玩家密碼
-    document.getElementById('changeGlobalPasswordBtn').addEventListener('click', async () => {
-      const newPassword = document.getElementById('newGlobalPassword').value;
-      const res = await fetch('/api/admin/change-global-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
-        body: JSON.stringify({ newPassword })
-      });
-      const data = await res.json();
-      document.getElementById('changeGlobalPasswordStatus').textContent = data.message || data.error;
-    });
-
+    }
     // 查看完整號碼分布
     document.getElementById('refreshFullDistributionBtn').addEventListener('click', async () => {
-      const code = document.getElementById('fullDistributionGameCode').value;
+      const code = document.getElementById('fullDistributionGameSelect').value;
       const res = await fetch('/api/admin/full-distribution?code=' + encodeURIComponent(code), {
         headers: { 'Authorization': 'Bearer ' + adminToken }
       });
@@ -317,37 +323,34 @@
         const grid = document.getElementById('distributionGrid');
         grid.innerHTML = '';
 
-        // 動態設定 grid 列數
-        const root = Math.sqrt(data.gridSize);
-        if (Number.isInteger(root)) {
-          grid.style.gridTemplateColumns = `repeat(${root}, 60px)`;
-        } else {
-          grid.style.gridTemplateColumns = `repeat(6, 60px)`; // 預設 6 列
-        }
+        // 使用遊戲的 gridSize 來決定排列方式
+        grid.style.gridTemplateColumns = `repeat(auto-fill, 60px)`;
 
-       // 建立格子顯示號碼
-data.numbers.forEach(num => {
-  const cell = document.createElement('div');
-  cell.textContent = num;
-  cell.style.width = '60px';
-  cell.style.height = '60px';
-  cell.style.display = 'flex';
-  cell.style.justifyContent = 'center';
-  cell.style.alignItems = 'center';
-  cell.style.border = '1px solid #444';
-  cell.style.borderRadius = '5px';
-  cell.style.background = '#eee';
-  cell.style.color = '#000';
+        // 建立格子顯示號碼（像玩家端一樣）
+        data.numbers.forEach(num => {
+          const cell = document.createElement('div');
+          cell.textContent = num;
+          cell.style.width = '60px';
+          cell.style.height = '60px';
+          cell.style.display = 'flex';
+          cell.style.justifyContent = 'center';
+          cell.style.alignItems = 'center';
+          cell.style.border = '1px solid #444';
+          cell.style.borderRadius = '5px';
+          cell.style.background = '#ccc';
+          cell.style.color = '#000';
+          cell.style.fontSize = '20px';
 
-  // 👉 如果是中獎號碼，標示成黃色
-  const numberValue = parseInt(num, 10);
-  if (data.winNumbers.includes(numberValue)) {
-    cell.style.background = 'yellow';
-    cell.style.fontWeight = 'bold';
-  }
+          // 如果是中獎號碼，標示成金色
+          const numberValue = parseInt(num, 10);
+          if (data.winNumbers.includes(numberValue)) {
+            cell.style.background = '#fff';
+            cell.style.color = 'gold';
+            cell.style.fontWeight = 'bold';
+          }
 
-  grid.appendChild(cell);
-});
+          grid.appendChild(cell);
+        });
       } else {
         alert('查無此遊戲代碼');
       }
