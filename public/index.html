@@ -428,6 +428,30 @@
     e.stopPropagation();
     e.preventDefault();
   }, true);
+
+  // === 閒置檢測 ===
+  let idleTimer = null;
+  const idleLimit = 60000; // 1 分鐘 (毫秒)
+
+  function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      forceLogout();
+    }, idleLimit);
+  }
+
+  function forceLogout() {
+    alert("您已超過 1 分鐘未操作，請重新登入");
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('selectGame').style.display = 'none';
+    document.getElementById('login').style.display = 'block';
+  }
+
+  ['click', 'mousemove', 'keydown', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, resetIdleTimer, true);
+  });
+
+  resetIdleTimer();
 </script>
 </body>
 </html>
