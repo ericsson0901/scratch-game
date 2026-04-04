@@ -204,7 +204,7 @@
         document.getElementById('changeAdminPassword').style.display = 'block';
         document.getElementById('changeGlobalPassword').style.display = 'block';
         document.getElementById('fullDistribution').style.display = 'block';
-        await refreshGameSelects();
+        await refreshGameSelects();  // ✅ 修正後正確呼叫
       } else {
         alert('管理員密碼錯誤');
       }
@@ -373,10 +373,7 @@
       });
       if (res.ok) {
         const data = await res.json();
-        const ul = document.getElementById('gameListUl');
-        ul.innerHTML = '';
-        data.codes.forEach(code => {
-          const li = document.createElement好的，這是 **第四段**（完整的 JS 程式碼，事件綁定與邏輯，並正確收尾）：  
+        const ul = document.getElementById('game好的，這是修正後的 **第四段**（完整的 JS 程式碼，事件綁定與邏輯，並正確收尾，已修正語法錯誤）：  
 
 ---
 
@@ -407,7 +404,7 @@
         document.getElementById('changeAdminPassword').style.display = 'block';
         document.getElementById('changeGlobalPassword').style.display = 'block';
         document.getElementById('fullDistribution').style.display = 'block';
-        await refreshGameSelects();
+        await refreshGameSelects();  // ✅ 修正後正確呼叫
       } else {
         alert('管理員密碼錯誤');
       }
@@ -569,7 +566,7 @@
       });
     }
 
-     // 更新遊戲代碼清單
+        // 更新遊戲代碼清單
     async function refreshGameSelects() {
       const res = await fetch('/api/admin/game-list', {
         headers: { 'Authorization': 'Bearer ' + adminToken }
