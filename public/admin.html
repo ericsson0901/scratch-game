@@ -287,26 +287,37 @@
       document.getElementById('progressFill').style.width = percent + '%';
     });
 
-    // 查看完整號碼分布
-    document.getElementById('refreshFullDistributionBtn').addEventListener('click', async () => {
-      const code = document.getElementById('fullDistributionGameSelect').value;
-      const res = await fetch('/api/admin/full-distribution?code=' + code, {
-        headers: { 'Authorization': 'Bearer ' + adminToken }
-      });
-      const data = await res.json();
-      const grid = document.getElementById('distributionGrid');
-      grid.innerHTML = '';
-      grid.style.gridTemplateColumns = `repeat(${data.gridSize}, 40px)`;
-      data.numbers.forEach(num => {
-        const cell = document.createElement('div');
-        cell.textContent = num;
-        cell.style.background = data.winNumbers.includes(num) ? '#4caf50' : '#333';
-        cell.style.color = '#fff';
-        cell.style.padding = '10px';
-        cell.style.borderRadius = '6px';
-        grid.appendChild(cell);
-      });
-    });
+// 查看完整號碼分布
+document.getElementById('refreshFullDistributionBtn').addEventListener('click', async () => {
+  const code = document.getElementById('fullDistributionGameSelect').value;
+  const res = await fetch('/api/admin/full-distribution?code=' + code, {
+    headers: { 'Authorization': 'Bearer ' + adminToken }
+  });
+  const data = await res.json();
+  const grid = document.getElementById('distributionGrid');
+  grid.innerHTML = '';
+
+  // 🔹 改成跟玩家端一致的排列方式
+  grid.style.display = "grid";
+  grid.style.gridTemplateColumns = `repeat(auto-fill, 60px)`; 
+  grid.style.justifyContent = "center";
+  grid.style.gap = "5px";
+
+  data.numbers.forEach(num => {
+    const cell = document.createElement('div');
+    cell.textContent = num;
+    cell.style.width = "60px";
+    cell.style.height = "60px";
+    cell.style.display = "flex";
+    cell.style.justifyContent = "center";
+    cell.style.alignItems = "center";
+    cell.style.fontSize = "20px";
+    cell.style.background = data.winNumbers.includes(num) ? '#4caf50' : '#333';
+    cell.style.color = '#fff';
+    cell.style.borderRadius = '6px';
+    grid.appendChild(cell);
+  });
+});
 
     // 修改遊戲設定表單提交
     document.getElementById('configForm').addEventListener('submit', async (e) => {
