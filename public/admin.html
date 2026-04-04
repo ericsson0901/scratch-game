@@ -373,11 +373,7 @@
       });
       if (res.ok) {
         const data = await res.json();
-        const ul = document.getElementById('game好的，這是修正後的 **第四段**（完整的 JS 程式碼，事件綁定與邏輯，並正確收尾，已修正語法錯誤）：  
-
----
-
-```html
+        const ul = document.getElementById
   <!-- JS 程式碼 -->
   <script>
     let adminToken = null;
@@ -566,40 +562,40 @@
       });
     }
 
-        // 更新遊戲代碼清單
-    async function refreshGameSelects() {
-      const res = await fetch('/api/admin/game-list', {
-        headers: { 'Authorization': 'Bearer ' + adminToken }
+// 更新遊戲代碼清單
+async function refreshGameSelects() {
+  const res = await fetch('/api/admin/game-list', {
+    headers: { 'Authorization': 'Bearer ' + adminToken }
+  });
+  if (res.ok) {
+    const data = await res.json();
+    const ul = document.getElementById('gameListUl');
+    ul.innerHTML = '';
+    data.codes.forEach(code => {
+      const li = document.createElement('li');
+      li.textContent = code;
+      ul.appendChild(li);
+    });
+    const selects = [
+      document.getElementById('configGameSelect'),
+      document.getElementById('resetGameSelect'),
+      document.getElementById('deleteGameSelect'),
+      document.getElementById('progressGameSelect'),
+      document.getElementById('fullDistributionGameSelect')
+    ];
+    selects.forEach(sel => {
+      sel.innerHTML = '';
+      data.codes.forEach(code => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = code;
+        sel.appendChild(opt);
       });
-      if (res.ok) {
-        const data = await res.json();
-        const ul = document.getElementById('gameListUl');
-        ul.innerHTML = '';
-        data.codes.forEach(code => {
-          const li = document.createElement('li');
-          li.textContent = code;
-          ul.appendChild(li);
-        });
-        const selects = [
-          document.getElementById('configGameSelect'),
-          document.getElementById('resetGameSelect'),
-          document.getElementById('deleteGameSelect'),
-          document.getElementById('progressGameSelect'),
-          document.getElementById('fullDistributionGameSelect')
-        ];
-        selects.forEach(sel => {
-          sel.innerHTML = '';
-          data.codes.forEach(code => {
-            const opt = document.createElement('option');
-            opt.value = code;
-            opt.textContent = code;
-            sel.appendChild(opt);
-          });
-        });
-      } else {
-        alert('無法取得遊戲清單');
-      }
-    }
-  </script>
+    });
+  } else {
+    alert('無法取得遊戲清單');
+  }
+}
+</script>
 </body>
 </html>
