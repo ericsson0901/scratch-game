@@ -204,7 +204,7 @@
         document.getElementById('changeAdminPassword').style.display = 'block';
         document.getElementById('changeGlobalPassword').style.display = 'block';
         document.getElementById('fullDistribution').style.display = 'block';
-        await refreshGameSelects();  // ✅ 修正後正確呼叫
+        await refreshGameSelects();  // ✅ 正確呼叫
       } else {
         alert('管理員密碼錯誤');
       }
@@ -272,7 +272,6 @@
       const data = await res.json();
       document.getElementById('changeGlobalPasswordStatus').textContent = data.message || data.error;
     });
-
     // 查看遊戲進度
     document.getElementById('refreshProgressBtn').addEventListener('click', async () => {
       const code = document.getElementById('progressGameSelect').value;
@@ -373,229 +372,33 @@
       });
       if (res.ok) {
         const data = await res.json();
-        const ul = document.getElementById
-  <!-- JS 程式碼 -->
-  <script>
-    let adminToken = null;
-    let winNumbers = [];
-
-    // 登入
-    document.getElementById('loginBtn').addEventListener('click', async () => {
-      const password = document.getElementById('adminPassword').value;
-      const res = await fetch('/api/admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        adminToken = data.token;
-        document.getElementById('login').style.display = 'none';
-        document.getElementById('createGame').style.display = 'block';
-        document.getElementById('resetGame').style.display = 'block';
-        document.getElementById('deleteGame').style.display = 'block';
-        document.getElementById('config').style.display = 'block';
-        document.getElementById('progress').style.display = 'block';
-        document.getElementById('gameList').style.display = 'block';
-        document.getElementById('changeAdminPassword').style.display = 'block';
-        document.getElementById('changeGlobalPassword').style.display = 'block';
-        document.getElementById('fullDistribution').style.display = 'block';
-        await refreshGameSelects();  // ✅ 修正後正確呼叫
+        const ul = document.getElementById('gameListUl');
+        ul.innerHTML = '';
+        data.codes.forEach(code => {
+          const li = document.createElement('li');
+          li.textContent = code;
+          ul.appendChild(li);
+        });
+        const selects = [
+          document.getElementById('configGameSelect'),
+          document.getElementById('resetGameSelect'),
+          document.getElementById('deleteGameSelect'),
+          document.getElementById('progressGameSelect'),
+          document.getElementById('fullDistributionGameSelect')
+        ];
+        selects.forEach(sel => {
+          sel.innerHTML = '';
+          data.codes.forEach(code => {
+            const opt = document.createElement('option');
+            opt.value = code;
+            opt.textContent = code;
+            sel.appendChild(opt);
+          });
+        });
       } else {
-        alert('管理員密碼錯誤');
+        alert('無法取得遊戲清單');
       }
-    });
-
-    // 建立遊戲
-    document.getElementById('createGameBtn').addEventListener('click', async () => {
-      const code = document.getElementById('newGameCode').value;
-      const managerPassword = document.getElementById('newManagerPassword').value;
-      const res = await fetch('/api/admin/create-game', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
-        body: JSON.stringify({ code, managerPassword })
-      });
-      const data = await res.json();
-      document.getElementById('createStatus').textContent = data.message || data.error;
-      await refreshGameSelects();
-    });
-
-    // 重設遊戲
-    document.getElementById('resetGameBtn').addEventListener('click', async () => {
-      const code = document.getElementById('resetGameSelect').value;
-      const res = await fetch('/api/admin/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
-        body: JSON.stringify({ code })
-      });
-      const data = await res.json();
-      document.getElementById('resetStatus').textContent = data.message || data.error;
-    });
-
-    // 刪除遊戲
-    document.getElementById('deleteGameBtn').addEventListener('click', async () => {
-      const code = document.getElementById('deleteGameSelect').value;
-      const res = await fetch('/api/admin/delete-game', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
-        body: JSON.stringify({ code })
-      });
-      const data = await res.json();
-      document.getElementById('deleteStatus').textContent = data.message || data.error;
-      await refreshGameSelects();
-    });
-
-    // 修改管理員密碼
-    document.getElementById('changeAdminPasswordBtn').addEventListener('click', async () => {
-      const newPassword = document.getElementById('newAdminPassword').value;
-      const res = await fetch('/api/admin/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
-        body: JSON.stringify({ newPassword })
-      });
-      const data = await res.json();
-      document.getElementById('changeAdminPasswordStatus').textContent = data.message || data.error;
-    });
-
-    // 修改全域玩家密碼
-    document.getElementById('changeGlobalPasswordBtn').addEventListener('click', async () => {
-      const newPassword = document.getElementById('newGlobalPassword').value;
-      const res = await fetch('/api/admin/change-global-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
-        body: JSON.stringify({ newPassword })
-      });
-      const data = await res.json();
-      document.getElementById('changeGlobalPasswordStatus').textContent = data.message || data.error;
-    });
-
-    // 查看遊戲進度
-    document.getElementById('refreshProgressBtn').addEventListener('click', async () => {
-      const code = document.getElementById('progressGameSelect').value;
-      const res = await fetch('/api/admin/progress?code=' + code, {
-        headers: { 'Authorization': 'Bearer ' + adminToken }
-      });
-      const data = await res.json();
-      document.getElementById('scratchedCountAdmin').textContent = data.scratchedCount;
-      document.getElementById('remainingCountAdmin').textContent = data.remainingCount;
-      document.getElementById('thresholdAdmin').textContent = JSON.stringify(data.progressThresholds);
-      document.getElementById('thresholdReached').textContent = data.thresholdReached ? '是' : '否';
-      const percent = (data.scratchedCount / (data.scratchedCount + data.remainingCount)) * 100;
-      document.getElementById('progressFill').style.width = percent + '%';
-    });
-
-    // 查看完整號碼分布
-    document.getElementById('refreshFullDistributionBtn').addEventListener('click', async () => {
-      const code = document.getElementById('fullDistributionGameSelect').value;
-      const res = await fetch('/api/admin/full-distribution?code=' + code, {
-        headers: { 'Authorization': 'Bearer ' + adminToken }
-      });
-      const data = await res.json();
-      const grid = document.getElementById('distributionGrid');
-      grid.innerHTML = '';
-      grid.style.gridTemplateColumns = `repeat(${data.gridSize}, 40px)`;
-      data.numbers.forEach(num => {
-        const cell = document.createElement('div');
-        cell.textContent = num;
-        cell.style.background = data.winNumbers.includes(num) ? '#4caf50' : '#333';
-        cell.style.color = '#fff';
-        cell.style.padding = '10px';
-        cell.style.borderRadius = '6px';
-        grid.appendChild(cell);
-      });
-    });
-
-    // 修改遊戲設定表單提交
-    document.getElementById('configForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const code = document.getElementById('configGameSelect').value;
-      const gridSize = document.querySelector('input[name="gridSize"]').value;
-      const managerPassword = document.querySelector('input[name="managerPassword"]').value;
-      const thresholds = {};
-      winNumbers.forEach(num => {
-        const input = document.querySelector(`#threshold-${num}`);
-        thresholds[num] = parseInt(input.value) || 0;
-      });
-      const res = await fetch('/api/admin/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
-        body: JSON.stringify({ code, gridSize: parseInt(gridSize), winNumbers, progressThresholds: thresholds, managerPassword })
-      });
-      const data = await res.json();
-      document.getElementById('status').textContent = data.success ? '設定已更新' : (data.error || '更新失敗');
-    });
-
-    // 號碼標籤輸入邏輯
-    document.getElementById('winNumberInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const val = parseInt(e.target.value);
-        if (!isNaN(val) && !winNumbers.includes(val)) {
-          winNumbers.push(val);
-          renderTags();
-        }
-        e.target.value = '';
-      }
-    });
-
-    function renderTags() {
-      const container = document.getElementById('winNumbersTags');
-      container.innerHTML = '';
-      winNumbers.forEach(num => {
-        const tag = document.createElement('div');
-        tag.className = 'tag';
-        tag.textContent = num;
-        const span = document.createElement('span');
-        span.textContent = 'x';
-        span.onclick = () => {
-          winNumbers = winNumbers.filter(n => n !== num);
-          renderTags();
-        };
-        const thresholdInput = document.createElement('input');
-        thresholdInput.type = 'number';
-        thresholdInput.className = 'thresholdInput';
-        thresholdInput.id = `threshold-${num}`;
-        thresholdInput.placeholder = '門檻';
-        tag.appendChild(thresholdInput);
-        tag.appendChild(span);
-        container.appendChild(tag);
-      });
     }
-
-// 更新遊戲代碼清單
-async function refreshGameSelects() {
-  const res = await fetch('/api/admin/game-list', {
-    headers: { 'Authorization': 'Bearer ' + adminToken }
-  });
-  if (res.ok) {
-    const data = await res.json();
-    const ul = document.getElementById('gameListUl');
-    ul.innerHTML = '';
-    data.codes.forEach(code => {
-      const li = document.createElement('li');
-      li.textContent = code;
-      ul.appendChild(li);
-    });
-    const selects = [
-      document.getElementById('configGameSelect'),
-      document.getElementById('resetGameSelect'),
-      document.getElementById('deleteGameSelect'),
-      document.getElementById('progressGameSelect'),
-      document.getElementById('fullDistributionGameSelect')
-    ];
-    selects.forEach(sel => {
-      sel.innerHTML = '';
-      data.codes.forEach(code => {
-        const opt = document.createElement('option');
-        opt.value = code;
-        opt.textContent = code;
-        sel.appendChild(opt);
-      });
-    });
-  } else {
-    alert('無法取得遊戲清單');
-  }
-}
-</script>
+  </script>
 </body>
 </html>
