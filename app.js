@@ -446,14 +446,17 @@ app.post('/api/admin/change-password', (req, res) => {
 // === Admin 修改全域玩家密碼（持久化） ===
 app.post('/api/admin/change-global-password', (req, res) => {
   const auth = req.headers.authorization;
-  if (!auth || auth !== 'Bearer admin-token') return res.status(403).json({ error: 'Unauthorized' });
+  if (!auth || auth !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
 
   const { newPassword } = req.body;
-  if (!newPassword) return res.status(400).json({ error: 'New player password required' });
+  if (!newPassword) {
+    return res.status(400).json({ error: 'New player password required' });
+  }
 
   globalPlayerPassword = newPassword;
-  games.__globalPlayerPassword = globalPlayerPassword;
-  savePasswords();
+  savePasswords(); // 正確持久化
   res.json({ message: "全域玩家密碼已更新" });
 });
 
