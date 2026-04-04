@@ -184,8 +184,9 @@
   <!-- JS 程式碼 -->
   <script>
     let adminToken = null;
+    let winNumbers = [];
 
-    // 管理員登入
+    // 登入
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const password = document.getElementById('adminPassword').value;
       const res = await fetch('/api/admin', {
@@ -205,11 +206,11 @@
         document.getElementById('gameList').style.display = 'block';
         document.getElementById('changeAdminPassword').style.display = 'block';
         document.getElementById('changeGlobalPassword').style.display = 'block';
-        document.getElementById('fullDistribution你說得對，剛剛那份 `admin.html` 缺少了「修改全域玩家密碼」按鈕的事件綁定，所以按下去完全沒反應。後端 API 是好的，問題在前端。下面我幫你補上缺失的部分，其他地方保持原樣，給你完整的 **admin.html**，可以直接複製貼上使用。  
+        document.getElementById('fullDistribution').style.display = 'block';
+        await refreshGameSelects();
+明白了，你需要一份 **完整的 `admin.html`**，可以直接複製貼上使用，不會再缺字或功能。下面我給你一次性完整版本，包含所有事件綁定（登入、建立、刪除、重設、修改密碼、修改遊戲設定、標籤式號碼輸入、查看進度、完整分布、更新清單），並正確收尾。  
 
 ---
-
-### 完整修改後的 admin.html
 
 ```html
 <!DOCTYPE html>
@@ -398,8 +399,9 @@
   <!-- JS 程式碼 -->
   <script>
     let adminToken = null;
+    let winNumbers = [];
 
-    // 管理員登入
+    // 登入
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const password = document.getElementById('adminPassword').value;
       const res = await fetch('/api/admin', {
@@ -420,9 +422,7 @@
         document.getElementById('changeAdminPassword').style.display = 'block';
         document.getElementById('changeGlobalPassword').style.display = 'block';
         document.getElementById('fullDistribution').style.display = 'block';
-
-                // 登入後立即載入遊戲代碼清單，填充下拉選單
-        await refreshGameSelects();
+        await refreshGameSelect        await refreshGameSelects();
       } else {
         alert('管理員密碼錯誤');
       }
@@ -439,8 +439,6 @@
       });
       const data = await res.json();
       document.getElementById('createStatus').textContent = data.message || data.error;
-
-      // 建立新遊戲後更新下拉選單
       await refreshGameSelects();
     });
 
@@ -466,8 +464,6 @@
       });
       const data = await res.json();
       document.getElementById('deleteStatus').textContent = data.message || data.error;
-
-      // 刪除後更新下拉選單
       await refreshGameSelects();
     });
 
@@ -483,7 +479,7 @@
       document.getElementById('changeAdminPasswordStatus').textContent = data.message || data.error;
     });
 
-    // 修改全域玩家密碼（補上缺失的事件綁定）
+    // 修改全域玩家密碼
     document.getElementById('changeGlobalPasswordBtn').addEventListener('click', async () => {
       const newPassword = document.getElementById('newGlobalPassword').value;
       const res = await fetch('/api/admin/change-global-password', {
@@ -495,7 +491,133 @@
       document.getElementById('changeGlobalPasswordStatus').textContent = data.message || data.error;
     });
 
-    // （其餘程式碼保持原樣，包含 refreshGameSelects、refreshFullDistributionBtn、標籤式輸入、修改遊戲設定等）
+    // 查看遊戲進度
+    document.getElementById('refreshProgressBtn').addEventListener('click', async () => {
+      const code = document.getElementById('progressGameSelect').value;
+      const res = await fetch('/api/admin/progress?code=' + code, {
+        headers: { 'Authorization': 'Bearer ' + adminToken }
+      });
+      const data = await res.json();
+      document.getElementById('scratchedCountAdmin').textContent = data.scratchedCount;
+      document.getElementById('remainingCountAdmin').textContent = data.remainingCount;
+      document.getElementById('thresholdAdmin').textContent = JSON.stringify(data.progressThresholds);
+      document.getElementById('thresholdReached').textContent = data.thresholdReached ? '是' : '否';
+      const percent = (data.scratchedCount / (data.scratchedCount + data.remainingCount)) * 100;
+      document.getElementById('progressFill').style.width = percent + '%';
+    });
+
+    // 查看完整號碼分布
+    document.getElementById('refreshFullDistributionBtn').addEventListener('click', async () => {
+      const code = document.getElementById('fullDistributionGameSelect').value;
+      const res = await fetch('/api/admin/full-distribution?code=' + code, {
+        headers: { 'Authorization': 'Bearer ' + adminToken }
+      });
+      const data = await res.json();
+      const grid = document.getElementById('distributionGrid');
+      grid.innerHTML = '';
+      grid.style.gridTemplateColumns = `repeat(${data.gridSize}, 40px)`;
+      data.numbers.forEach(num => {
+        const cell = document.createElement('div');
+        cell.textContent = num;
+        cell.style.background = data.winNumbers.includes(num) ? '#4caf50' : '#333';
+        cell.style.color = '#fff';
+        cell.style.padding = '10px';
+        cell.style.borderRadius = '6px';
+        grid.appendChild(cell);
+      });
+    });
+
+    // 修改遊戲設定表單提交
+    document.getElementById('configForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = document.getElementById('configGameSelect').value;
+      const gridSize = document.querySelector('input[name="gridSize"]').value;
+      const managerPassword = document.querySelector('input[name="managerPassword"]').value;
+      const thresholds = {};
+      winNumbers.forEach(num => {
+        const input = document.querySelector(`#threshold-${num}`);
+        thresholds[num] = parseInt(input.value) || 0;
+      });
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json','Authorization': 'Bearer ' + adminToken },
+        body: JSON.stringify({ code, gridSize: parseInt(gridSize), winNumbers, progressThresholds: thresholds, managerPassword })
+      });
+      const data = await res.json();
+      document.getElementById('status').textContent = data.success ? '設定已更新' : (data.error || '更新失敗');
+    });
+
+    // 號碼標籤輸入邏輯
+    document.getElementById('winNumberInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = parseInt(e.target.value);
+        if (!isNaN(val) && !winNumbers.includes(val)) {
+          winNumbers.push(val);
+          renderTags();
+        }
+        e.target.value = '';
+      }
+    });
+
+    function renderTags() {
+      const container = document.getElementById('winNumbersTags');
+      container.innerHTML = '';
+      winNumbers.forEach(num => {
+        const tag = document.createElement('div');
+        tag.className = 'tag';
+        tag.textContent = num;
+        const span = document.createElement('span');
+        span.textContent = 'x';
+        span.onclick = () => {
+          winNumbers = winNumbers.filter(n => n !== num);
+          renderTags();
+        };
+        const thresholdInput = document.createElement('input');
+        thresholdInput.type = 'number';
+        thresholdInput.className = 'thresholdInput';
+        thresholdInput.id = `threshold-${num}`;
+        thresholdInput.placeholder = '門檻';
+        tag.appendChild(thresholdInput);
+        tag.appendChild(span);
+        container.appendChild(tag);
+      });
+    }
+
+    // 更新遊戲代碼清單
+    async function refreshGameSelects() {
+      const res = await fetch('/api/admin/game-list', {
+        headers: { 'Authorization': 'Bearer ' + adminToken }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const ul = document.getElementById('gameListUl');
+        ul.innerHTML = '';
+        data.codes.forEach(code => {
+          const li = document.createElement('li');
+          li.textContent = code;
+          ul.appendChild(li);
+        });
+        const selects = [
+          document.getElementById('configGameSelect'),
+          document.getElementById('resetGameSelect'),
+          document.getElementById('deleteGameSelect'),
+          document.getElementById('progressGameSelect'),
+          document.getElementById('fullDistributionGameSelect')
+        ];
+        selects.forEach(sel => {
+          sel.innerHTML = '';
+          data.codes.forEach(code => {
+            const opt = document.createElement('option');
+            opt.value = code;
+            opt.textContent = code;
+            sel.appendChild(opt);
+          });
+        });
+      } else {
+        alert('無法取得遊戲清單');
+      }
+    }
   </script>
 </body>
 </html>
