@@ -101,10 +101,11 @@ function initGame(code, config = defaultConfig) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   games[code] = {
-    numbers: arr,
-    scratched: Array(config.gridSize).fill(null),
-    config: { ...config }
-  };
+  numbers: arr,
+  scratched: Array(config.gridSize).fill(null),
+  config: { ...config },
+  forceWinNext: false
+};
   saveGame(code);
 }
 // === Admin 與 Manager 登入 API ===
@@ -225,11 +226,54 @@ app.post('/api/game/scratch', (req, res) => {
     return res.json({ number: game.scratched[index] });
   }
 
-  let number = game.numbers[index];
-  const scratchedCount = game.scratched.filter(n => n !== null).length;
+let number = game.numbers[index];
+const scratchedCount = game.scratched.filter(n => n !== null).length;
+
+// === 強制下一次中獎 ===
+if (game.forceWinNext) {
 
   const thresholds = game.config.progressThresholds || {};
-  const thresholdForNumber = thresholds[number];
+
+  let foundWin = false;
+
+  for (let i = 0; i < game.numbers.length; i++) {
+
+    if (game.scratched[i] !== null || i === index) continue;
+
+    const n = game.numbers[i];
+
+    // 必須是中獎號碼
+    if (!game.config.winNumbers.includes(n)) continue;
+
+    const threshold = thresholds[n] || 0;
+
+    // 必須達門檻
+    if (scratchedCount >= threshold) {
+
+      // 交換號碼
+      game.numbers[i] = game.numbers[index];
+      game.numbers[index] = n;
+
+      number = n;
+
+      foundWin = true;
+
+      console.log("強制中獎成功:", n);
+
+      break;
+    }
+  }
+
+  if (!foundWin) {
+    console.log("沒有符合門檻的中獎號碼");
+  }
+
+  // 只生效一次
+  game.forceWinNext = false;
+}
+
+const thresholds = game.config.progressThresholds || {};
+const thresholdForNumber = thresholds[number];
 
   if (typeof thresholdForNumber === 'number' &&
       scratchedCount < thresholdForNumber &&
@@ -355,6 +399,32 @@ app.post('/api/admin/delete-game', (req, res) => {
   res.json({ message: "遊戲 " + code + " 已刪除" });
 });
 
+// === Admin 強制下一次中獎 ===
+app.post('/api/admin/force-win', (req, res) => {
+
+  const auth = req.headers.authorization;
+
+  if (!auth || auth !== 'Bearer admin-token') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { code } = req.body;
+
+  loadGame(code);
+
+  if (!games[code]) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+
+  games[code].forceWinNext = true;
+
+  saveGame(code);
+
+  res.json({
+    success: true,
+    message: '下一次已設定必中'
+  });
+});
 // === Admin 修改遊戲設定 ===
 app.post('/api/admin/config', (req, res) => {
   const auth = req.headers.authorization;

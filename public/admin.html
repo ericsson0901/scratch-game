@@ -135,6 +135,18 @@
     <button id="deleteGameBtn">刪除遊戲</button>
     <p id="deleteStatus"></p>
   </div>
+<!-- 強制下一次中獎 -->
+<div class="card" id="forceWin" style="display:none;">
+  <h2>強制下一次中獎</h2>
+
+  <select id="forceWinGameSelect"></select>
+
+  <button id="forceWinBtn">
+    下一次必中
+  </button>
+
+  <p id="forceWinStatus"></p>
+</div>
   <!-- 查看進度 -->
   <div class="card" id="progress" style="display:none;">
     <h2>遊戲進度</h2>
@@ -204,6 +216,7 @@
         document.getElementById('changeAdminPassword').style.display = 'block';
         document.getElementById('changeGlobalPassword').style.display = 'block';
         document.getElementById('fullDistribution').style.display = 'block';
+        document.getElementById('forceWin').style.display = 'block';
         await refreshGameSelects();  // ✅ 正確呼叫
       } else {
         alert('管理員密碼錯誤');
@@ -390,13 +403,14 @@ document.getElementById('refreshFullDistributionBtn').addEventListener('click', 
           li.textContent = code;
           ul.appendChild(li);
         });
-        const selects = [
-          document.getElementById('configGameSelect'),
-          document.getElementById('resetGameSelect'),
-          document.getElementById('deleteGameSelect'),
-          document.getElementById('progressGameSelect'),
-          document.getElementById('fullDistributionGameSelect')
-        ];
+   const selects = [
+  document.getElementById('configGameSelect'),
+  document.getElementById('resetGameSelect'),
+  document.getElementById('deleteGameSelect'),
+  document.getElementById('progressGameSelect'),
+  document.getElementById('fullDistributionGameSelect'),
+  document.getElementById('forceWinGameSelect')
+];
         selects.forEach(sel => {
           sel.innerHTML = '';
           data.codes.forEach(code => {
@@ -410,6 +424,25 @@ document.getElementById('refreshFullDistributionBtn').addEventListener('click', 
         alert('無法取得遊戲清單');
       }
     }
+// 強制下一次中獎
+document.getElementById('forceWinBtn').addEventListener('click', async () => {
+
+  const code = document.getElementById('forceWinGameSelect').value;
+
+  const res = await fetch('/api/admin/force-win', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + adminToken
+    },
+    body: JSON.stringify({ code })
+  });
+
+  const data = await res.json();
+
+  document.getElementById('forceWinStatus').textContent =
+    data.message || data.error;
+});
   </script>
 </body>
 </html>
